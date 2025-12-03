@@ -318,12 +318,23 @@ router.post(
       if (hasGmailToken) {
         try {
           const tokenData = tokenStore.getToken(userId);
+
+          // Extract email addresses from EmailAddress objects
+          const toEmails = to.map((addr: any) =>
+            typeof addr === "string" ? addr : addr.email
+          );
+          const ccEmails = cc
+            ? cc.map((addr: any) =>
+                typeof addr === "string" ? addr : addr.email
+              )
+            : undefined;
+
           const rawMessage = createRawEmail({
             from: tokenData!.email,
-            to,
+            to: toEmails,
             subject: subject || "(no subject)",
             body: body || "",
-            cc,
+            cc: ccEmails,
             inReplyTo,
           });
 
@@ -506,5 +517,67 @@ router.post("/emails/bulk-action", (req: Request, res: Response): void => {
     });
   }
 });
+
+// GET /api/emails/:messageId/attachments/:attachmentId - Download attachment
+router.get(
+  "/emails/:messageId/attachments/:attachmentId",
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?.userId;
+      const { messageId, attachmentId } = req.params;
+
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          message: "Unauthorized",
+        });
+        return;
+      }
+
+      // Check if user has Gmail tokens
+      const hasGmailToken = tokenStore.hasToken(userId);
+
+      if (!hasGmailToken) {
+        res.status(400).json({
+          success: false,
+          message: "Gmail not connected",
+        });
+        return;
+      }
+
+      // Get attachment from Gmail
+      const attachment = await gmailService.getAttachment(
+        userId,
+        messageId,
+        attachmentId
+      );
+
+      if (!attachment.data) {
+        res.status(404).json({
+          success: false,
+          message: "Attachment not found",
+        });
+        return;
+      }
+
+      // Decode base64url data
+      const buffer = Buffer.from(attachment.data, "base64url");
+
+      // Set appropriate headers
+      res.setHeader("Content-Type", "application/octet-stream");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="attachment_${attachmentId}"`
+      );
+      res.send(buffer);
+    } catch (error) {
+      console.error("Download attachment error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to download attachment",
+      });
+    }
+  }
+);
 
 export default router;

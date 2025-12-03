@@ -9,20 +9,53 @@ import {
   Star,
   Paperclip,
   Mail,
+  Download,
 } from "lucide-react";
 import type { Email } from "../../types";
+import apiClient from "../../api/axios";
 
 interface EmailDetailProps {
   email: Email | null;
   onToggleStar: (emailId: string) => void;
   onDelete: (emailId: string) => void;
+  onReply: (email: Email, replyAll?: boolean) => void;
+  onForward: (email: Email) => void;
 }
 
 const EmailDetail: React.FC<EmailDetailProps> = ({
   email,
   onToggleStar,
   onDelete,
+  onReply,
+  onForward,
 }) => {
+  const handleDownloadAttachment = async (
+    attachmentId: string,
+    fileName: string
+  ) => {
+    try {
+      const response = await apiClient.get(
+        `/emails/${email?.id}/attachments/${attachmentId}`,
+        {
+          responseType: "blob",
+        }
+      );
+
+      // Create a blob URL and trigger download
+      const blob = new Blob([response.data]);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Failed to download attachment:", error);
+      alert("Failed to download attachment. Please try again.");
+    }
+  };
   if (!email) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center bg-gray-50 p-8">
@@ -105,15 +138,24 @@ const EmailDetail: React.FC<EmailDetailProps> = ({
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2 mt-4">
-          <button className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium">
+          <button
+            onClick={() => onReply(email, false)}
+            className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium"
+          >
             <Reply className="w-4 h-4" />
             Reply
           </button>
-          <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium">
+          <button
+            onClick={() => onReply(email, true)}
+            className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+          >
             <ReplyAll className="w-4 h-4" />
             Reply All
           </button>
-          <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium">
+          <button
+            onClick={() => onForward(email)}
+            className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+          >
             <Forward className="w-4 h-4" />
             Forward
           </button>
@@ -137,9 +179,14 @@ const EmailDetail: React.FC<EmailDetailProps> = ({
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {email.attachments.map((attachment, index) => (
-              <div
+              <button
                 key={index}
-                className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+                onClick={() =>
+                  attachment.id &&
+                  handleDownloadAttachment(attachment.id, attachment.name)
+                }
+                disabled={!attachment.id}
+                className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer text-left disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
                   <Paperclip className="w-5 h-5 text-gray-600" />
@@ -150,7 +197,8 @@ const EmailDetail: React.FC<EmailDetailProps> = ({
                   </p>
                   <p className="text-xs text-gray-500">{attachment.size}</p>
                 </div>
-              </div>
+                <Download className="w-4 h-4 text-gray-400 flex-shrink-0" />
+              </button>
             ))}
           </div>
         </div>

@@ -21,6 +21,7 @@ interface EmailListProps {
   onDelete: (emailId: string) => void;
   onMarkAsRead: (emailIds: string[], isRead: boolean) => void;
   onRefresh: () => void;
+  onCompose: () => void;
 }
 
 const EmailList: React.FC<EmailListProps> = ({
@@ -32,6 +33,7 @@ const EmailList: React.FC<EmailListProps> = ({
   onDelete,
   onMarkAsRead,
   onRefresh,
+  onCompose,
 }) => {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -146,6 +148,7 @@ const EmailList: React.FC<EmailListProps> = ({
             </div>
           ) : (
             <button
+              onClick={onCompose}
               className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium"
               title="Compose"
             >

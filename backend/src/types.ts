@@ -23,6 +23,7 @@ export interface EmailAddress {
 }
 
 export interface Attachment {
+  id?: string;
   name: string;
   size: string;
   type: string;

@@ -5,6 +5,7 @@ import apiClient from "../api/axios";
 import type { Mailbox, Email } from "../types";
 import EmailDetail from "../components/dashboard/EmailDetail";
 import EmailList from "../components/dashboard/EmailList";
+import ComposeEmail from "../components/dashboard/ComposeEmail";
 
 const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
@@ -14,6 +15,12 @@ const Dashboard: React.FC = () => {
   const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
   const [loading, setLoading] = useState(true);
   const [emailsLoading, setEmailsLoading] = useState(false);
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [composeMode, setComposeMode] = useState<{
+    replyTo?: Email;
+    replyAll?: boolean;
+    forward?: boolean;
+  }>({});
 
   // Fetch mailboxes on mount
   useEffect(() => {
@@ -143,6 +150,26 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const handleCompose = () => {
+    setComposeMode({});
+    setComposeOpen(true);
+  };
+
+  const handleReply = (email: Email, replyAll: boolean = false) => {
+    setComposeMode({ replyTo: email, replyAll });
+    setComposeOpen(true);
+  };
+
+  const handleForward = (email: Email) => {
+    setComposeMode({ replyTo: email, forward: true });
+    setComposeOpen(true);
+  };
+
+  const handleEmailSent = () => {
+    // Refresh emails after sending
+    handleRefresh();
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -191,6 +218,7 @@ const Dashboard: React.FC = () => {
           onDelete={handleDeleteEmail}
           onMarkAsRead={handleMarkAsRead}
           onRefresh={handleRefresh}
+          onCompose={handleCompose}
         />
 
         {/* Column 3: Email Detail (~40%) */}
@@ -198,8 +226,20 @@ const Dashboard: React.FC = () => {
           email={selectedEmail}
           onToggleStar={handleToggleStar}
           onDelete={handleDeleteEmail}
+          onReply={handleReply}
+          onForward={handleForward}
         />
       </div>
+
+      {/* Compose Email Modal */}
+      <ComposeEmail
+        isOpen={composeOpen}
+        onClose={() => setComposeOpen(false)}
+        onSent={handleEmailSent}
+        replyTo={composeMode.replyTo}
+        replyAll={composeMode.replyAll}
+        forward={composeMode.forward}
+      />
     </div>
   );
 };

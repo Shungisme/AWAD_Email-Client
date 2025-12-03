@@ -184,6 +184,7 @@ function extractAttachments(
       // Check if this part is an attachment
       if (part.filename && part.body?.attachmentId) {
         attachments.push({
+          id: part.body.attachmentId,
           name: part.filename,
           size: formatBytes(part.body.size || 0),
           type: part.mimeType || "application/octet-stream",
