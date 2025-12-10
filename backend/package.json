@@ -19,6 +19,7 @@
 	"author": "",
 	"license": "ISC",
 	"dependencies": {
+		"@google/generative-ai": "^0.24.1",
 		"@types/mongoose": "^5.11.96",
 		"axios": "^1.13.2",
 		"bcryptjs": "^2.4.3",

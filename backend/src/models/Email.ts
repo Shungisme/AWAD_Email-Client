@@ -39,9 +39,6 @@ export interface IEmail extends Document {
   // Workflow status (custom field)
   status: "inbox" | "todo" | "done" | "snoozed";
 
-  // AI features
-  summary?: string; // AI-generated summary, persisted
-
   // Snooze feature
   snoozeUntil?: Date | null;
 
@@ -112,9 +109,6 @@ const EmailSchema = new Schema<IEmail>(
       default: "inbox",
       index: true,
     },
-
-    // AI features
-    summary: { type: String },
 
     // Snooze feature
     snoozeUntil: { type: Date, default: null },

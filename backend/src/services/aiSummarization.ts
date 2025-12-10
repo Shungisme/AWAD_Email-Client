@@ -1,13 +1,27 @@
-import axios from "axios";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 class AISummarizationService {
-  private apiKey: string;
-  private apiUrl: string;
+  private genAI: GoogleGenerativeAI | null;
+  private model: any;
 
   constructor() {
-    this.apiKey = process.env.GEMINI_API_KEY || "";
-    this.apiUrl =
-      "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent";
+    const apiKey = process.env.GEMINI_API_KEY || "";
+
+    if (apiKey) {
+      this.genAI = new GoogleGenerativeAI(apiKey);
+      this.model = this.genAI.getGenerativeModel({
+        model: "gemini-2.0-flash",
+        generationConfig: {
+          temperature: 0.5,
+          maxOutputTokens: 300,
+        },
+      });
+      console.log("✓ Gemini AI initialized with API key");
+    } else {
+      this.genAI = null;
+      this.model = null;
+      console.log("✗ Gemini API key not configured");
+    }
   }
 
   /**
@@ -18,8 +32,8 @@ class AISummarizationService {
    */
   async generateSummary(emailBody: string, subject: string): Promise<string> {
     try {
-      if (!this.apiKey) {
-        console.warn("Gemini API key not configured, returning preview");
+      if (!this.model) {
+        console.warn("Gemini AI not initialized, returning simple summary");
         return this.generateSimpleSummary(emailBody);
       }
 
@@ -38,40 +52,26 @@ ${emailBody}
 
 Please provide a concise summary of this email.`;
 
-      const response = await axios.post(
-        `${this.apiUrl}?key=${this.apiKey}`,
-        {
-          contents: [
-            {
-              parts: [
-                {
-                  text: prompt,
-                },
-              ],
-            },
-          ],
-          generationConfig: {
-            temperature: 0.5,
-            maxOutputTokens: 150,
-          },
-        },
-        {
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
+      // Use Google Generative AI SDK
+      console.log(
+        `Calling Gemini AI for email: ${subject.substring(0, 50)}...`
       );
+      const result = await this.model.generateContent(prompt);
+      const response = await result.response;
+      const summary = response.text().trim();
 
-      const summary =
-        response.data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ||
-        this.generateSimpleSummary(emailBody);
+      if (!summary) {
+        console.warn("Empty response from Gemini, using fallback");
+        return this.generateSimpleSummary(emailBody);
+      }
+
+      console.log(`✓ Summary generated: ${summary.substring(0, 50)}...`);
       return summary;
     } catch (error: any) {
       console.error("Gemini AI Summarization error:", {
         message: error?.message,
-        status: error?.response?.status,
-        statusText: error?.response?.statusText,
-        data: error?.response?.data,
+        code: error?.code,
+        status: error?.status,
       });
       return this.generateSimpleSummary(emailBody);
     }

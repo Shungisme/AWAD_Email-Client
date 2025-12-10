@@ -9,6 +9,8 @@ import {
   Star,
   Search,
   Plus,
+  Sparkles,
+  Loader2,
 } from "lucide-react";
 import type { Email } from "../../types";
 
@@ -22,6 +24,7 @@ interface EmailListProps {
   onMarkAsRead: (emailIds: string[], isRead: boolean) => void;
   onRefresh: () => void;
   onCompose: () => void;
+  onGenerateSummary?: (emailId: string) => Promise<string | null>;
 }
 
 const EmailList: React.FC<EmailListProps> = ({
@@ -34,9 +37,30 @@ const EmailList: React.FC<EmailListProps> = ({
   onMarkAsRead,
   onRefresh,
   onCompose,
+  onGenerateSummary,
 }) => {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [generatingIds, setGeneratingIds] = useState<Set<string>>(new Set());
+
+  const handleGenerateSummary = async (
+    e: React.MouseEvent,
+    emailId: string
+  ) => {
+    e.stopPropagation();
+    if (!onGenerateSummary || generatingIds.has(emailId)) return;
+
+    setGeneratingIds((prev) => new Set(prev).add(emailId));
+    try {
+      await onGenerateSummary(emailId);
+    } finally {
+      setGeneratingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(emailId);
+        return next;
+      });
+    }
+  };
 
   const handleSelectAll = () => {
     if (selectedIds.length === emails.length) {
@@ -250,6 +274,38 @@ const EmailList: React.FC<EmailListProps> = ({
                     <p className="text-sm text-gray-500 truncate">
                       {email.preview}
                     </p>
+
+                    {/* AI Summary Section */}
+                    {onGenerateSummary && (
+                      <div className="mt-2">
+                        {generatingIds.has(email.id) ? (
+                          <div className="flex items-center gap-2 text-xs text-blue-600">
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            <span>Generating summary...</span>
+                          </div>
+                        ) : email.summary ? (
+                          <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-md p-2">
+                            <div className="flex items-center gap-1 mb-1">
+                              <Sparkles className="w-3 h-3 text-purple-600" />
+                              <span className="text-xs font-semibold text-purple-700">
+                                AI Summary
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-700 line-clamp-2">
+                              {email.summary}
+                            </p>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={(e) => handleGenerateSummary(e, email.id)}
+                            className="flex items-center gap-1 text-xs text-purple-600 hover:text-purple-700 font-medium"
+                          >
+                            <Sparkles className="w-3 h-3" />
+                            <span>AI Summary</span>
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               );

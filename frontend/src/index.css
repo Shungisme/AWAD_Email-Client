@@ -13,20 +13,59 @@
 }
 
 @layer utilities {
+
+  /* Enhanced thin scrollbar - Chrome/Safari/Edge */
   .scrollbar-thin::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 8px;
+    height: 8px;
   }
 
   .scrollbar-thin::-webkit-scrollbar-track {
-    @apply bg-gray-100;
+    @apply bg-transparent;
   }
 
   .scrollbar-thin::-webkit-scrollbar-thumb {
     @apply bg-gray-300 rounded-full;
+    transition: background-color 0.2s;
   }
 
   .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-    @apply bg-gray-400;
+    @apply bg-gray-500;
+  }
+
+  /* Firefox support */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(209, 213, 219) transparent;
+  }
+
+  /* Blue scrollbar variant for special emphasis */
+  .scrollbar-blue::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .scrollbar-blue::-webkit-scrollbar-track {
+    @apply bg-blue-50;
+  }
+
+  .scrollbar-blue::-webkit-scrollbar-thumb {
+    @apply bg-blue-400 rounded-full;
+    transition: background-color 0.2s;
+  }
+
+  .scrollbar-blue::-webkit-scrollbar-thumb:hover {
+    @apply bg-blue-600;
+  }
+
+  /* Firefox support for blue variant */
+  .scrollbar-blue {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(96, 165, 250) rgb(239, 246, 255);
+  }
+
+  /* Smooth scrolling */
+  .smooth-scroll {
+    scroll-behavior: smooth;
   }
 }

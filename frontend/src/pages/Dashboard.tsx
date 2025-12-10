@@ -173,6 +173,49 @@ const Dashboard: React.FC = () => {
     handleRefresh();
   };
 
+  const handleEmailUpdate = (updatedEmail: Email) => {
+    // Update email in the list
+    setEmails(emails.map((e) => (e.id === updatedEmail.id ? updatedEmail : e)));
+    // Update selected email if it's the same one
+    if (selectedEmail?.id === updatedEmail.id) {
+      setSelectedEmail(updatedEmail);
+    }
+  };
+
+  const handleGenerateSummary = async (
+    emailId: string
+  ): Promise<string | null> => {
+    try {
+      const response = await apiClient.post(`/emails/${emailId}/summarize`);
+
+      if (response.data.success) {
+        const newSummary = response.data.data.summary;
+
+        // Update email in the list with new summary
+        setEmails(
+          emails.map((e) =>
+            e.id === emailId ? { ...e, summary: newSummary } : e
+          )
+        );
+
+        // Update selected email if it's the same one
+        if (selectedEmail?.id === emailId) {
+          setSelectedEmail({ ...selectedEmail, summary: newSummary });
+        }
+
+        return newSummary; // Return summary for KanbanBoard to use
+      }
+      return null;
+    } catch (error: any) {
+      console.error("Failed to generate summary:", error);
+      alert(
+        error.response?.data?.message ||
+          "Failed to generate summary. Please try again."
+      );
+      return null;
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -233,18 +276,13 @@ const Dashboard: React.FC = () => {
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
         {viewMode === "kanban" ? (
-          /* Kanban View - Full Width */
+          /* Kanban View - Full Width - Shows all emails by status */
           <div className="flex-1 overflow-hidden">
-            {selectedMailbox ? (
-              <KanbanBoard
-                mailboxId={selectedMailbox.id}
-                onSelectEmail={handleEmailSelect}
-              />
-            ) : (
-              <div className="flex items-center justify-center h-full">
-                <p className="text-gray-500">Loading mailboxes...</p>
-              </div>
-            )}
+            <KanbanBoard
+              mailboxId={selectedMailbox?.id}
+              onSelectEmail={handleEmailSelect}
+              onGenerateSummary={handleGenerateSummary}
+            />
           </div>
         ) : (
           /* Traditional List View - 3 Column Layout */
@@ -267,6 +305,7 @@ const Dashboard: React.FC = () => {
               onMarkAsRead={handleMarkAsRead}
               onRefresh={handleRefresh}
               onCompose={handleCompose}
+              onGenerateSummary={handleGenerateSummary}
             />
 
             {/* Column 3: Email Detail (~40%) */}
@@ -276,6 +315,7 @@ const Dashboard: React.FC = () => {
               onDelete={handleDeleteEmail}
               onReply={handleReply}
               onForward={handleForward}
+              onEmailUpdate={handleEmailUpdate}
             />
           </>
         )}
@@ -307,6 +347,7 @@ const Dashboard: React.FC = () => {
               onDelete={handleDeleteEmail}
               onReply={handleReply}
               onForward={handleForward}
+              onEmailUpdate={handleEmailUpdate}
             />
             <div className="p-4 border-t border-gray-200 flex justify-end">
               <button

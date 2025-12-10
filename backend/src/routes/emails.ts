@@ -54,7 +54,7 @@ async function getOrCreateEmailFromGmail(
           type: att.mimeType,
         })),
         status: existingEmail.status,
-        summary: existingEmail.summary || null,
+        summary: null, // Summary not persisted, generated on-demand only
         snoozeUntil: existingEmail.snoozeUntil?.toISOString() || null,
         gmailLink: `https://mail.google.com/mail/u/0/#inbox/${existingEmail.emailId}`,
       } as Email;
@@ -71,16 +71,8 @@ async function getOrCreateEmailFromGmail(
   const gmailMessage = await gmailService.getMessage(userId, messageId);
   const parsedEmail = parseGmailMessage(gmailMessage, userId, mailboxId);
 
-  // Generate AI summary immediately
-  let summary: string | null = null;
-  try {
-    summary = await aiSummarization.generateSummary(
-      parsedEmail.body,
-      parsedEmail.subject
-    );
-  } catch (error) {
-    console.error("Failed to generate summary for new email:", error);
-  }
+  // Don't auto-generate AI summary - user will request it manually via button
+  // This saves API calls and improves performance
 
   // Try to save to MongoDB (if connected)
   try {
@@ -106,13 +98,12 @@ async function getOrCreateEmailFromGmail(
       labels: labels,
       mailboxId: mailboxId,
       status: "inbox",
-      summary: summary,
       isRead: parsedEmail.isRead,
       isStarred: parsedEmail.isStarred,
     });
 
     await newEmail.save();
-    console.log(`Email ${parsedEmail.id} saved to MongoDB with AI summary`);
+    console.log(`Email ${parsedEmail.id} saved to MongoDB`);
   } catch (error) {
     console.warn(
       "Failed to save email to MongoDB, continuing without persistence:",
@@ -123,7 +114,7 @@ async function getOrCreateEmailFromGmail(
 
   return {
     ...parsedEmail,
-    summary: summary,
+    summary: null, // Summary will be generated on-demand
   };
 }
 
@@ -836,7 +827,7 @@ router.patch(
           type: att.mimeType,
         })),
         status: emailDoc.status,
-        summary: emailDoc.summary || null,
+        summary: null, // Summary not persisted
         snoozeUntil: emailDoc.snoozeUntil?.toISOString() || null,
         gmailLink: `https://mail.google.com/mail/u/0/#inbox/${emailDoc.emailId}`,
       };
@@ -938,7 +929,7 @@ router.post(
           type: att.mimeType,
         })),
         status: emailDoc.status,
-        summary: emailDoc.summary || null,
+        summary: null, // Summary not persisted
         snoozeUntil: emailDoc.snoozeUntil?.toISOString() || null,
         gmailLink: `https://mail.google.com/mail/u/0/#inbox/${emailDoc.emailId}`,
       };
@@ -958,7 +949,7 @@ router.post(
   }
 );
 
-// POST /api/emails/:id/summarize - Generate AI summary for an email
+// POST /api/emails/:id/summarize - Generate AI summary for an email (on-demand)
 router.post(
   "/emails/:id/summarize",
   async (req: Request, res: Response): Promise<void> => {
@@ -974,28 +965,54 @@ router.post(
         return;
       }
 
-      const emailIndex = emails.findIndex(
-        (e) => e.id === id && e.userId === userId
-      );
+      // Try to find email in MongoDB first
+      let email = null;
+      let emailDoc = null;
 
-      if (emailIndex === -1) {
-        res.status(404).json({
-          success: false,
-          message: "Email not found",
+      try {
+        emailDoc = await EmailModel.findOne({
+          emailId: id,
+          userId: userId,
         });
-        return;
+
+        if (emailDoc) {
+          email = {
+            id: emailDoc.emailId,
+            subject: emailDoc.subject,
+            body: emailDoc.body,
+          };
+        }
+      } catch (error) {
+        console.warn("MongoDB query failed, falling back to in-memory:", error);
       }
 
-      const email = emails[emailIndex];
+      // Fallback to in-memory emails
+      if (!email) {
+        const emailIndex = emails.findIndex(
+          (e) => e.id === id && e.userId === userId
+        );
 
-      // Generate summary using AI
+        if (emailIndex === -1) {
+          res.status(404).json({
+            success: false,
+            message: "Email not found",
+          });
+          return;
+        }
+
+        email = emails[emailIndex];
+      }
+
+      // Generate summary using AI (ephemeral - not saved to DB)
+      console.log(`Generating AI summary for email ${id}...`);
       const summary = await aiSummarization.generateSummary(
         email.body,
         email.subject
       );
 
-      emails[emailIndex].summary = summary;
+      console.log(`✓ Summary generated for email ${id} (not persisted)`);
 
+      // Return summary without saving to database
       res.json({
         success: true,
         data: {
@@ -1007,7 +1024,7 @@ router.post(
       console.error("Summarize email error:", error);
       res.status(500).json({
         success: false,
-        message: "Internal server error",
+        message: "Failed to generate summary. Please try again.",
       });
     }
   }
@@ -1061,33 +1078,18 @@ router.post(
         return;
       }
 
-      // Generate summaries in batch
+      // Generate summaries in batch (ephemeral - not saved to DB)
       const summaries = await aiSummarization.batchSummarize(
         emailDocs.map((doc) => ({ body: doc.body, subject: doc.subject }))
       );
 
-      // Update emails with summaries in MongoDB
-      const updatePromises = emailDocs.map(async (doc, index) => {
-        try {
-          doc.summary = summaries[index];
-          await doc.save();
-          return {
-            id: doc.emailId,
-            summary: summaries[index],
-          };
-        } catch (error) {
-          console.warn(
-            `Failed to save summary for email ${doc.emailId}:`,
-            error
-          );
-          return {
-            id: doc.emailId,
-            summary: summaries[index],
-          };
-        }
-      });
+      // Return summaries without saving to database
+      const results = emailDocs.map((doc, index) => ({
+        id: doc.emailId,
+        summary: summaries[index],
+      }));
 
-      const results = await Promise.all(updatePromises);
+      console.log(`✓ Generated ${results.length} summaries (not persisted)`);
 
       res.json({
         success: true,
@@ -1126,6 +1128,32 @@ router.get(
           message: "Invalid status",
         });
         return;
+      }
+
+      // Auto-expire snoozed emails that have passed their snoozeUntil time
+      try {
+        const result = await EmailModel.updateMany(
+          {
+            userId: userId,
+            status: "snoozed",
+            snoozeUntil: { $lt: new Date() },
+          },
+          {
+            $set: {
+              status: "inbox",
+              snoozeUntil: null,
+            },
+          }
+        );
+
+        if (result.modifiedCount > 0) {
+          console.log(
+            `✓ Auto-expired ${result.modifiedCount} snoozed email(s) back to inbox for user ${userId}`
+          );
+        }
+      } catch (error) {
+        console.warn("Failed to auto-expire snoozes:", error);
+        // Continue even if auto-expire fails
       }
 
       // Query MongoDB for emails with this status
@@ -1180,7 +1208,7 @@ router.get(
           type: att.mimeType,
         })),
         status: doc.status,
-        summary: doc.summary || null,
+        summary: null, // Summary is not persisted, generated on-demand only
         snoozeUntil: doc.snoozeUntil?.toISOString() || null,
         gmailLink: `https://mail.google.com/mail/u/0/#inbox/${doc.emailId}`,
       }));

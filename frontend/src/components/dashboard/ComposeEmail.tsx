@@ -153,7 +153,7 @@ const ComposeEmail: React.FC<ComposeEmailProps> = ({
         </div>
 
         {/* Form */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+        <div className="flex-1 overflow-y-auto scrollbar-thin p-6 space-y-4">
           {error && (
             <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
               <p className="text-sm text-red-800">{error}</p>

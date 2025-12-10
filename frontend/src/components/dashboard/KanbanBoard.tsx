@@ -8,13 +8,15 @@ import {
   MoreVertical,
   ExternalLink,
   Sparkles,
+  Loader2,
 } from "lucide-react";
 import type { Email, EmailStatus } from "../../types";
 import * as emailsAPI from "../../api/emails.api";
 
 interface KanbanBoardProps {
-  mailboxId: string;
+  mailboxId?: string; // Optional - Kanban shows all emails by status
   onSelectEmail: (email: Email) => void;
+  onGenerateSummary?: (emailId: string) => Promise<string | null>; // Returns summary
 }
 
 interface Column {
@@ -54,6 +56,7 @@ const columns: Column[] = [
 const KanbanBoard: React.FC<KanbanBoardProps> = ({
   mailboxId,
   onSelectEmail,
+  onGenerateSummary,
 }) => {
   const [emailsByStatus, setEmailsByStatus] = useState<
     Record<EmailStatus, Email[]>
@@ -66,16 +69,26 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
   const [loading, setLoading] = useState(true);
   const [draggingEmail, setDraggingEmail] = useState<Email | null>(null);
   const [snoozeEmailId, setSnoozeEmailId] = useState<string | null>(null);
+  const [generatingIds, setGeneratingIds] = useState<Set<string>>(new Set());
 
   // Fetch emails grouped by status
   const fetchEmailsByStatus = useCallback(async () => {
     try {
       setLoading(true);
-      
-      // First, trigger a sync from Gmail to MongoDB by fetching mailbox emails
-      // This ensures MongoDB has the latest data before we query by status
-      await emailsAPI.fetchMailboxEmails(mailboxId, 1, 50);
-      
+
+      // Optional: Sync from Gmail if mailboxId is available
+      // Otherwise, just fetch from MongoDB directly
+      if (mailboxId) {
+        try {
+          await emailsAPI.fetchMailboxEmails(mailboxId, 1, 50);
+        } catch (error) {
+          console.warn(
+            "Failed to sync mailbox, continuing with DB data:",
+            error
+          );
+        }
+      }
+
       // Now fetch emails by status from MongoDB
       const statusPromises = columns.map((col) =>
         emailsAPI.fetchEmailsByStatus(col.id)
@@ -94,37 +107,6 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
         newEmailsByStatus[status] = emails;
       });
 
-      // Generate summaries for emails that don't have one
-      for (const status of Object.keys(newEmailsByStatus) as EmailStatus[]) {
-        const emailsNeedingSummary = newEmailsByStatus[status].filter(
-          (e) => !e.summary
-        );
-
-        if (emailsNeedingSummary.length > 0) {
-          try {
-            const summaries = await emailsAPI.batchSummarizeEmails(
-              emailsNeedingSummary.map((e) => e.id)
-            );
-
-            // Update emails with new summaries
-            const summaryMap = new Map(
-              summaries.map((item) => [
-                item.id,
-                item.summary,
-              ])
-            );
-
-            newEmailsByStatus[status] = newEmailsByStatus[status].map((email) =>
-              summaryMap.has(email.id)
-                ? { ...email, summary: summaryMap.get(email.id) as string }
-                : email
-            );
-          } catch (error) {
-            console.error("Failed to generate summaries:", error);
-          }
-        }
-      }
-
       setEmailsByStatus(newEmailsByStatus);
     } catch (error) {
       console.error("Failed to fetch emails:", error);
@@ -133,13 +115,47 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
     }
   }, [mailboxId]);
 
+  const handleGenerateSummary = async (
+    e: React.MouseEvent,
+    emailId: string
+  ) => {
+    e.stopPropagation();
+    if (!onGenerateSummary || generatingIds.has(emailId)) return;
+
+    setGeneratingIds((prev) => new Set(prev).add(emailId));
+    try {
+      const summary = await onGenerateSummary(emailId);
+
+      // Update local state with the new summary (no need to re-fetch from backend)
+      if (summary) {
+        setEmailsByStatus((prev) => {
+          const updated = { ...prev };
+          Object.keys(updated).forEach((status) => {
+            updated[status as EmailStatus] = updated[status as EmailStatus].map(
+              (email) => (email.id === emailId ? { ...email, summary } : email)
+            );
+          });
+          return updated;
+        });
+      }
+    } finally {
+      setGeneratingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(emailId);
+        return next;
+      });
+    }
+  };
+
   useEffect(() => {
+    // Fetch emails immediately, mailboxId is optional
     fetchEmailsByStatus();
 
     // Refresh every 60 seconds to check for expired snoozes
     const interval = setInterval(fetchEmailsByStatus, 60000);
     return () => clearInterval(interval);
-  }, [fetchEmailsByStatus]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mailboxId]); // Re-run when mailboxId changes (or initially when undefined)
 
   // Handle drag start
   const handleDragStart = (email: Email) => {
@@ -161,21 +177,48 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
     }
 
     try {
-      // Update status on backend
-      await emailsAPI.updateEmailStatus(draggingEmail.id, targetStatus);
+      // If dropping to snoozed column, set default snooze time (1 hour)
+      if (targetStatus === "snoozed") {
+        const snoozeUntil = new Date();
+        snoozeUntil.setHours(snoozeUntil.getHours() + 1);
 
-      // Update local state
-      const sourceStatus = draggingEmail.status;
-      setEmailsByStatus((prev) => ({
-        ...prev,
-        [sourceStatus]: prev[sourceStatus].filter(
-          (e) => e.id !== draggingEmail.id
-        ),
-        [targetStatus]: [
-          ...prev[targetStatus],
-          { ...draggingEmail, status: targetStatus, snoozeUntil: null },
-        ],
-      }));
+        await emailsAPI.snoozeEmail(draggingEmail.id, {
+          snoozeUntil: snoozeUntil.toISOString(),
+        });
+
+        // Update local state with snooze info
+        const sourceStatus = draggingEmail.status;
+        setEmailsByStatus((prev) => ({
+          ...prev,
+          [sourceStatus]: prev[sourceStatus].filter(
+            (e) => e.id !== draggingEmail.id
+          ),
+          snoozed: [
+            ...prev.snoozed,
+            {
+              ...draggingEmail,
+              status: "snoozed",
+              snoozeUntil: snoozeUntil.toISOString(),
+            },
+          ],
+        }));
+      } else {
+        // Update status on backend
+        await emailsAPI.updateEmailStatus(draggingEmail.id, targetStatus);
+
+        // Update local state
+        const sourceStatus = draggingEmail.status;
+        setEmailsByStatus((prev) => ({
+          ...prev,
+          [sourceStatus]: prev[sourceStatus].filter(
+            (e) => e.id !== draggingEmail.id
+          ),
+          [targetStatus]: [
+            ...prev[targetStatus],
+            { ...draggingEmail, status: targetStatus, snoozeUntil: null },
+          ],
+        }));
+      }
     } catch (error) {
       console.error("Failed to update email status:", error);
     } finally {
@@ -193,8 +236,60 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
         snoozeUntil: snoozeUntil.toISOString(),
       });
 
-      // Refresh emails
-      fetchEmailsByStatus();
+      // Update local state - move email to snoozed column
+      setEmailsByStatus((prev) => {
+        let emailToSnooze: Email | null = null;
+        let sourceStatus: EmailStatus | null = null;
+
+        // Find the email in current columns
+        for (const status of [
+          "inbox",
+          "todo",
+          "done",
+          "snoozed",
+        ] as EmailStatus[]) {
+          const found = prev[status].find((e) => e.id === emailId);
+          if (found) {
+            emailToSnooze = found;
+            sourceStatus = status;
+            break;
+          }
+        }
+
+        if (!emailToSnooze || !sourceStatus) return prev;
+
+        // Create new state with email moved to snoozed
+        return {
+          inbox:
+            sourceStatus === "inbox"
+              ? prev.inbox.filter((e) => e.id !== emailId)
+              : prev.inbox,
+          todo:
+            sourceStatus === "todo"
+              ? prev.todo.filter((e) => e.id !== emailId)
+              : prev.todo,
+          done:
+            sourceStatus === "done"
+              ? prev.done.filter((e) => e.id !== emailId)
+              : prev.done,
+          snoozed:
+            sourceStatus === "snoozed"
+              ? prev.snoozed.map((e) =>
+                  e.id === emailId
+                    ? { ...e, snoozeUntil: snoozeUntil.toISOString() }
+                    : e
+                )
+              : [
+                  ...prev.snoozed,
+                  {
+                    ...emailToSnooze,
+                    status: "snoozed",
+                    snoozeUntil: snoozeUntil.toISOString(),
+                  },
+                ],
+        };
+      });
+
       setSnoozeEmailId(null);
     } catch (error) {
       console.error("Failed to snooze email:", error);
@@ -278,13 +373,34 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
       </div>
 
       {/* AI Summary */}
-      {email.summary && (
-        <div className="mb-2 p-2 bg-blue-50 border border-blue-100 rounded text-xs">
-          <div className="flex items-center gap-1 mb-1">
-            <Sparkles className="w-3 h-3 text-blue-500" />
-            <span className="text-blue-700 font-medium">AI Summary</span>
-          </div>
-          <p className="text-gray-700 line-clamp-3">{email.summary}</p>
+      {onGenerateSummary && (
+        <div className="mb-2">
+          {generatingIds.has(email.id) ? (
+            <div className="flex items-center gap-2 text-xs text-blue-600 p-2 bg-blue-50 rounded">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              <span>Generating summary...</span>
+            </div>
+          ) : email.summary ? (
+            <div className="p-2 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded">
+              <div className="flex items-center gap-1 mb-1">
+                <Sparkles className="w-3 h-3 text-purple-600" />
+                <span className="text-xs font-semibold text-purple-700">
+                  AI Summary
+                </span>
+              </div>
+              <p className="text-xs text-gray-700 line-clamp-3">
+                {email.summary}
+              </p>
+            </div>
+          ) : (
+            <button
+              onClick={(e) => handleGenerateSummary(e, email.id)}
+              className="flex items-center gap-1 text-xs text-purple-600 hover:text-purple-700 font-medium p-2 hover:bg-purple-50 rounded transition-colors"
+            >
+              <Sparkles className="w-3 h-3" />
+              <span>AI Summary</span>
+            </button>
+          )}
         </div>
       )}
 
@@ -332,6 +448,11 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
   const isEmpty = !loading && allEmailsCount === 0;
 
   const handleSyncFromGmail = async () => {
+    if (!mailboxId) {
+      alert("No mailbox selected. Please select a mailbox to sync.");
+      return;
+    }
+
     try {
       setLoading(true);
       // Fetch inbox emails first to populate the board
@@ -409,7 +530,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
               </div>
 
               {/* Email Cards */}
-              <div className="flex-1 space-y-3 overflow-x-auto">
+              <div className="flex-1 space-y-3 overflow-y-auto scrollbar-thin">
                 {emailsByStatus[column.id].length === 0 ? (
                   <div className="text-center py-8 text-gray-400 text-sm">
                     No emails in this column

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { format } from "date-fns";
 import DOMPurify from "dompurify";
 import {
@@ -10,6 +10,8 @@ import {
   Paperclip,
   Mail,
   Download,
+  Sparkles,
+  Loader2,
 } from "lucide-react";
 import type { Email } from "../../types";
 import apiClient from "../../api/axios";
@@ -20,6 +22,7 @@ interface EmailDetailProps {
   onDelete: (emailId: string) => void;
   onReply: (email: Email, replyAll?: boolean) => void;
   onForward: (email: Email) => void;
+  onEmailUpdate?: (updatedEmail: Email) => void;
 }
 
 const EmailDetail: React.FC<EmailDetailProps> = ({
@@ -28,7 +31,43 @@ const EmailDetail: React.FC<EmailDetailProps> = ({
   onDelete,
   onReply,
   onForward,
+  onEmailUpdate,
 }) => {
+  const [generatingSummary, setGeneratingSummary] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [localSummary, setLocalSummary] = useState<string | null>(null);
+  const handleGenerateSummary = async () => {
+    if (!email) return;
+
+    setGeneratingSummary(true);
+    setSummaryError(null);
+
+    try {
+      const response = await apiClient.post(`/emails/${email.id}/summarize`);
+
+      if (response.data.success) {
+        const newSummary = response.data.data.summary;
+        setLocalSummary(newSummary);
+
+        // Update parent component with new summary
+        if (onEmailUpdate) {
+          onEmailUpdate({
+            ...email,
+            summary: newSummary,
+          });
+        }
+      }
+    } catch (error: any) {
+      console.error("Failed to generate summary:", error);
+      setSummaryError(
+        error.response?.data?.message ||
+          "Failed to generate summary. Please try again."
+      );
+    } finally {
+      setGeneratingSummary(false);
+    }
+  };
+
   const handleDownloadAttachment = async (
     attachmentId: string,
     fileName: string
@@ -56,6 +95,7 @@ const EmailDetail: React.FC<EmailDetailProps> = ({
       alert("Failed to download attachment. Please try again.");
     }
   };
+
   if (!email) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center bg-gray-50 p-8">
@@ -158,6 +198,57 @@ const EmailDetail: React.FC<EmailDetailProps> = ({
           >
             <Forward className="w-4 h-4" />
             Forward
+          </button>
+        </div>
+      </div>
+
+      {/* AI Summary Section */}
+      <div className="border-t border-gray-200 p-6 bg-gradient-to-r from-purple-50 to-blue-50">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1">
+            <h3 className="text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-purple-600" />
+              AI Summary
+            </h3>
+
+            {localSummary || email.summary ? (
+              <div className="bg-white rounded-lg p-4 shadow-sm border border-purple-100">
+                <p className="text-sm text-gray-700 leading-relaxed">
+                  {localSummary || email.summary}
+                </p>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500 italic">
+                No summary generated yet. Click the button to generate an AI
+                summary.
+              </p>
+            )}
+
+            {summaryError && (
+              <div className="mt-3 bg-red-50 border border-red-200 rounded-lg p-3">
+                <p className="text-sm text-red-600">{summaryError}</p>
+              </div>
+            )}
+          </div>
+
+          <button
+            onClick={handleGenerateSummary}
+            disabled={generatingSummary}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md flex-shrink-0"
+          >
+            {generatingSummary ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Generating...
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4" />
+                {localSummary || email.summary
+                  ? "Regenerate"
+                  : "Generate Summary"}
+              </>
+            )}
           </button>
         </div>
       </div>
