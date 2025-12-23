@@ -130,7 +130,10 @@ export const updateEmailStatus = async (
 export const sendEmail = async (
   emailData: SendEmailRequest
 ): Promise<SendEmailResponse> => {
-  const response = await apiClient.post<SendEmailResponse>("/emails/send", emailData);
+  const response = await apiClient.post<SendEmailResponse>(
+    "/emails/send",
+    emailData
+  );
   return response.data;
 };
 
@@ -147,7 +150,10 @@ export const deleteEmail = async (emailId: string): Promise<void> => {
 export const bulkActionEmails = async (
   actionData: BulkActionRequest
 ): Promise<BulkActionResponse> => {
-  const response = await apiClient.post<BulkActionResponse>("/emails/bulk-action", actionData);
+  const response = await apiClient.post<BulkActionResponse>(
+    "/emails/bulk-action",
+    actionData
+  );
   return response.data;
 };
 
@@ -279,6 +285,33 @@ export const downloadAttachment = async (
 export const fetchEmailThread = async (threadId: string): Promise<Email[]> => {
   const response = await apiClient.get<ApiResponse<Email[]>>(
     `/emails/thread/${threadId}`
+  );
+  return response.data.data || [];
+};
+
+/**
+ * Semantic search for emails using vector embeddings
+ */
+export const semanticSearch = async (
+  query: string,
+  limit: number = 20
+): Promise<Email[]> => {
+  const response = await apiClient.post<ApiResponse<Email[]>>(
+    "/search/semantic",
+    { query, limit }
+  );
+  return response.data.data || [];
+};
+
+/**
+ * Get search suggestions for auto-complete
+ */
+export const getSearchSuggestions = async (
+  query: string
+): Promise<string[]> => {
+  const response = await apiClient.get<ApiResponse<string[]>>(
+    "/search/suggestions",
+    { params: { q: query } }
   );
   return response.data.data || [];
 };

@@ -147,11 +147,6 @@ Frontend runs on: `http://localhost:5173`
 Open `http://localhost:5173` and either:
 
 - **Click "Sign in with Gmail"** (requires Google Cloud setup)
-- **Or use demo credentials:**
-  ```
-  Email: demo@example.com
-  Password: password123
-  ```
 
 ## 🔐 Authentication Flow
 

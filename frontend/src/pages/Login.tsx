@@ -145,7 +145,7 @@ const Login: React.FC = () => {
             </div>
             <div className="relative flex justify-center text-sm">
               <span className="px-4 bg-white text-gray-500">
-                Or use demo account
+                Or use account
               </span>
             </div>
           </div>
@@ -170,7 +170,7 @@ const Login: React.FC = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors"
-                  placeholder="demo@example.com"
+                  placeholder="example@example.com"
                   disabled={loading}
                 />
               </div>
@@ -216,18 +216,6 @@ const Login: React.FC = () => {
               )}
             </button>
           </form>
-
-          {/* Demo Credentials */}
-          <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <p className="text-xs font-semibold text-blue-900 mb-2">
-              Demo Credentials:
-            </p>
-            <p className="text-xs text-blue-800">
-              <strong>Email:</strong> demo@example.com
-              <br />
-              <strong>Password:</strong> password123
-            </p>
-          </div>
         </div>
 
         {/* Footer */}

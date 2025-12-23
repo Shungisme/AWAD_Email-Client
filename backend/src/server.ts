@@ -8,6 +8,7 @@ import connectDB from "./config/database";
 import authRoutes from "./routes/auth";
 import mailboxesRoutes from "./routes/mailboxes";
 import emailsRoutes from "./routes/emails";
+import kanbanRoutes from "./routes/kanban";
 
 // Connect to MongoDB
 connectDB();
@@ -44,6 +45,7 @@ app.get("/health", (req: Request, res: Response) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/mailboxes", mailboxesRoutes);
 app.use("/api", emailsRoutes);
+app.use("/api/kanban", kanbanRoutes);
 
 // 404 handler
 app.use((req: Request, res: Response) => {

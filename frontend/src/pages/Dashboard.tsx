@@ -8,7 +8,9 @@ import EmailList from "../components/dashboard/EmailList";
 import ComposeEmail from "../components/dashboard/ComposeEmail";
 import KanbanBoard from "../components/dashboard/KanbanBoard";
 import SearchResults from "../components/dashboard/SearchResults";
-import { LayoutGrid, List, Search } from "lucide-react";
+import SearchBar from "../components/dashboard/SearchBar";
+import { LayoutGrid, List } from "lucide-react";
+import { semanticSearch } from "../api/emails.api";
 
 const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
@@ -161,24 +163,42 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // F2: Handle fuzzy search
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) return;
+  // F2: Handle search (both fuzzy and semantic)
+  const handleSearch = async (query: string, isSemanticSearch: boolean) => {
+    if (!query.trim()) return;
 
     setSearchMode(true);
     setSearchLoading(true);
     setSearchError(null);
+    setSearchQuery(query);
 
     try {
-      console.log('Searching for:', searchQuery);
-      const response = await apiClient.get(`/search?q=${encodeURIComponent(searchQuery)}`);
-      console.log('Search response:', response.data);
-      setSearchResults(response.data.data || []);
+      console.log(
+        `${isSemanticSearch ? "Semantic" : "Fuzzy"} search for:`,
+        query
+      );
+
+      let results: Email[];
+      if (isSemanticSearch) {
+        // Use semantic search
+        results = await semanticSearch(query, 20);
+      } else {
+        // Use fuzzy search
+        const response = await apiClient.get(
+          `/search?q=${encodeURIComponent(query)}`
+        );
+        results = response.data.data || [];
+      }
+
+      console.log("Search results:", results.length, "emails");
+      setSearchResults(results);
     } catch (error) {
       console.error("Search error:", error);
-      const errorMessage = error instanceof Error && 'response' in error
-        ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
-        : undefined;
+      const errorMessage =
+        error instanceof Error && "response" in error
+          ? (error as { response?: { data?: { message?: string } } }).response
+              ?.data?.message
+          : undefined;
       setSearchError(errorMessage || "Failed to search emails");
     } finally {
       setSearchLoading(false);
@@ -247,9 +267,11 @@ const Dashboard: React.FC = () => {
       return null;
     } catch (error) {
       console.error("Failed to generate summary:", error);
-      const errorMessage = error instanceof Error && 'response' in error
-        ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
-        : undefined;
+      const errorMessage =
+        error instanceof Error && "response" in error
+          ? (error as { response?: { data?: { message?: string } } }).response
+              ?.data?.message
+          : undefined;
       alert(errorMessage || "Failed to generate summary. Please try again.");
       return null;
     }
@@ -277,41 +299,33 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
         <div className="flex items-center gap-4">
-          {/* F2: Search Bar */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search emails (fuzzy)..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && searchQuery.trim()) {
-                  handleSearch();
-                }
-              }}
-              className="w-64 pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
-            />
-          </div>
+          {/* F2: Integrated Search Bar with Auto-Suggestions */}
+          <SearchBar
+            onSearch={handleSearch}
+            loading={searchLoading}
+            placeholder="Search emails..."
+          />
 
           {/* View Mode Toggle */}
           <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
             <button
               onClick={() => setViewMode("list")}
-              className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${viewMode === "list"
+              className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                viewMode === "list"
                   ? "bg-white text-gray-900 shadow-sm"
                   : "text-gray-600 hover:text-gray-900"
-                }`}
+              }`}
             >
               <List className="w-4 h-4" />
               List
             </button>
             <button
               onClick={() => setViewMode("kanban")}
-              className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${viewMode === "kanban"
+              className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                viewMode === "kanban"
                   ? "bg-white text-gray-900 shadow-sm"
                   : "text-gray-600 hover:text-gray-900"
-                }`}
+              }`}
             >
               <LayoutGrid className="w-4 h-4" />
               Kanban

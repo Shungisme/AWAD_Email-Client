@@ -46,6 +46,9 @@ export interface IEmail extends Document {
   isRead: boolean;
   isStarred: boolean;
 
+  // Semantic Search
+  embedding?: number[]; // Vector embedding for semantic search
+
   // Timestamps
   createdAt: Date;
   updatedAt: Date;
@@ -116,6 +119,9 @@ const EmailSchema = new Schema<IEmail>(
     // Flags
     isRead: { type: Boolean, default: false },
     isStarred: { type: Boolean, default: false },
+
+    // Semantic Search
+    embedding: { type: [Number], default: undefined }, // Vector embedding (768 dimensions for Gemini text-embedding-004)
   },
   {
     timestamps: true, // Automatically manage createdAt and updatedAt

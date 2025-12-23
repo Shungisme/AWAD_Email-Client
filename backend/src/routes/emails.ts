@@ -9,6 +9,8 @@ import { parseGmailMessage, createRawEmail } from "../utils/emailParser";
 import aiSummarization from "../services/aiSummarization";
 import EmailModel from "../models/Email";
 import Fuse from "fuse.js";
+import embeddingService from "../services/embeddingService";
+import KanbanConfig from "../models/KanbanConfig";
 
 const router = express.Router();
 
@@ -134,6 +136,214 @@ router.get("/search", async (req: Request, res: Response): Promise<void> => {
 });
 
 /**
+ * F1+: Semantic Search Endpoint
+ * POST /api/search/semantic
+ * Searches emails using vector embeddings for conceptual relevance
+ * Returns emails semantically similar to the query, not just keyword matches
+ */
+router.post(
+  "/search/semantic",
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?.userId;
+      const { query, limit = 20 } = req.body;
+
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          message: "Unauthorized",
+        });
+        return;
+      }
+
+      if (!query || query.trim() === "") {
+        res.json({
+          success: true,
+          data: [],
+          message: "No search query provided",
+        });
+        return;
+      }
+
+      console.log(
+        `Semantic search - userId: ${userId}, query: "${query}", limit: ${limit}`
+      );
+
+      // Generate embedding for the search query
+      const queryEmbedding = await embeddingService.generateQueryEmbedding(
+        query
+      );
+
+      // Fetch all emails with embeddings for the user
+      const emailsWithEmbeddings = await EmailModel.find({
+        userId: userId,
+        embedding: { $exists: true, $ne: null },
+      });
+
+      console.log(
+        `Found ${emailsWithEmbeddings.length} emails with embeddings for user ${userId}`
+      );
+
+      if (emailsWithEmbeddings.length === 0) {
+        res.json({
+          success: true,
+          data: [],
+          message:
+            "No emails with embeddings found. Please sync emails to generate embeddings.",
+        });
+        return;
+      }
+
+      // Calculate similarity scores for all emails
+      const emailsWithScores = emailsWithEmbeddings
+        .map((email) => {
+          const similarity = embeddingService.cosineSimilarity(
+            queryEmbedding,
+            email.embedding!
+          );
+          return {
+            email,
+            similarity,
+          };
+        })
+        .sort((a, b) => b.similarity - a.similarity) // Sort by highest similarity
+        .slice(0, limit); // Limit results
+
+      // Transform to Email format
+      const results = emailsWithScores.map(({ email, similarity }) => ({
+        id: email.emailId,
+        mailboxId: email.mailboxId || "inbox-1",
+        userId: email.userId,
+        from: email.from,
+        to: email.to,
+        cc: email.cc || [],
+        subject: email.subject,
+        body: email.body,
+        preview: email.bodySnippet || email.body.substring(0, 150),
+        timestamp: email.timestamp.toISOString(),
+        isRead: email.isRead,
+        isStarred: email.isStarred,
+        attachments: email.attachments.map((att) => ({
+          id: att.attachmentId,
+          name: att.filename,
+          size: att.size.toString(),
+          type: att.mimeType,
+        })),
+        status: email.status,
+        summary: null,
+        snoozeUntil: email.snoozeUntil?.toISOString() || null,
+        gmailLink: `https://mail.google.com/mail/u/0/#inbox/${email.emailId}`,
+        similarity: similarity.toFixed(4), // Include similarity score for debugging
+      }));
+
+      console.log(
+        `Semantic search returned ${
+          results.length
+        } results with similarities: ${results
+          .slice(0, 5)
+          .map((r) => r.similarity)
+          .join(", ")}`
+      );
+
+      res.json({
+        success: true,
+        data: results,
+        count: results.length,
+        query: query,
+        type: "semantic",
+      });
+    } catch (error) {
+      console.error("Semantic search error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Internal server error during semantic search",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
+);
+
+/**
+ * Search Suggestions Endpoint
+ * GET /api/search/suggestions?q=query
+ * Returns auto-complete suggestions for search (contacts and keywords)
+ */
+router.get(
+  "/search/suggestions",
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?.userId;
+      const query = (req.query.q as string) || "";
+
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          message: "Unauthorized",
+        });
+        return;
+      }
+
+      if (query.trim().length < 2) {
+        res.json({
+          success: true,
+          data: [],
+        });
+        return;
+      }
+
+      // Fetch recent emails to extract contacts and keywords
+      const recentEmails = await EmailModel.find({ userId: userId })
+        .sort({ timestamp: -1 })
+        .limit(500);
+
+      const suggestions = new Set<string>();
+      const queryLower = query.toLowerCase();
+
+      // Extract unique sender names and emails
+      recentEmails.forEach((email) => {
+        // Add sender name
+        if (
+          email.from.name &&
+          email.from.name.toLowerCase().includes(queryLower)
+        ) {
+          suggestions.add(email.from.name);
+        }
+        // Add sender email
+        if (email.from.email.toLowerCase().includes(queryLower)) {
+          suggestions.add(email.from.email);
+        }
+        // Add subject keywords (first 3-4 words)
+        const subjectWords = email.subject.split(" ").slice(0, 4);
+        subjectWords.forEach((word) => {
+          if (
+            word.length > 3 &&
+            word.toLowerCase().includes(queryLower) &&
+            !/^(the|and|for|with|from)$/i.test(word)
+          ) {
+            suggestions.add(word);
+          }
+        });
+      });
+
+      // Return top 5 suggestions
+      const suggestionArray = Array.from(suggestions).slice(0, 5);
+
+      res.json({
+        success: true,
+        data: suggestionArray,
+      });
+    } catch (error) {
+      console.error("Search suggestions error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Internal server error",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
+);
+
+/**
  * Helper function to get email from DB or fetch from Gmail and save with AI summary
  * Falls back gracefully if MongoDB is not connected
  */
@@ -193,6 +403,22 @@ async function getOrCreateEmailFromGmail(
   // Don't auto-generate AI summary - user will request it manually via button
   // This saves API calls and improves performance
 
+  // Generate embedding for semantic search
+  let embedding: number[] | undefined = undefined;
+  try {
+    embedding = await embeddingService.generateEmailEmbedding(
+      parsedEmail.subject,
+      parsedEmail.body
+    );
+    console.log(`Generated embedding for email ${parsedEmail.id}`);
+  } catch (error) {
+    console.warn(
+      `Failed to generate embedding for email ${parsedEmail.id}:`,
+      error
+    );
+    // Continue without embedding - semantic search won't work for this email but other features will
+  }
+
   // Try to save to MongoDB (if connected)
   try {
     const labels = gmailMessage.labelIds || [];
@@ -219,6 +445,7 @@ async function getOrCreateEmailFromGmail(
       status: "inbox",
       isRead: parsedEmail.isRead,
       isStarred: parsedEmail.isStarred,
+      embedding: embedding, // Add embedding
     });
 
     await newEmail.save();
@@ -915,6 +1142,46 @@ router.patch(
         emailDoc.snoozeUntil = null;
       }
       await emailDoc.save();
+
+      // Sync Gmail labels based on Kanban configuration
+      const hasGmailToken = tokenStore.hasToken(userId);
+      if (hasGmailToken) {
+        try {
+          // Get user's Kanban configuration
+          const kanbanConfig = await KanbanConfig.findOne({ userId });
+
+          if (kanbanConfig) {
+            // Find the column that matches the new status
+            const targetColumn = kanbanConfig.columns.find(
+              (col) => col.id === status
+            );
+
+            if (targetColumn && targetColumn.gmailLabel) {
+              // Get labels from other columns to remove
+              const labelsToRemove: string[] = kanbanConfig.columns
+                .filter((col) => col.id !== status && col.gmailLabel)
+                .map((col) => col.gmailLabel!);
+
+              // Apply the label change to Gmail
+              await gmailService.modifyMessage(
+                userId,
+                id,
+                [targetColumn.gmailLabel], // Add this label
+                labelsToRemove // Remove other column labels
+              );
+
+              console.log(
+                `Synced Gmail labels for email ${id}: Added ${
+                  targetColumn.gmailLabel
+                }, Removed ${labelsToRemove.join(", ")}`
+              );
+            }
+          }
+        } catch (error) {
+          console.error("Failed to sync Gmail labels:", error);
+          // Continue anyway - local status was updated successfully
+        }
+      }
 
       // Convert to Email type for response
       const updatedEmail: Email = {
