@@ -22,6 +22,12 @@ This project focuses on **AI-powered productivity features** rather than replica
 
 ### 🆕 Core Features
 
+- ✅ **Advanced Search System** - Dual-mode intelligent search with AI-powered relevance
+  - **Fuzzy Search (Fuse.js)**: Typo-tolerant keyword matching across subject, sender, and body
+  - **Semantic Search**: Vector embedding-based conceptual search using Google text-embedding-004
+  - Auto-complete suggestions from contacts and keywords
+  - Exact match prioritization with substring fallback
+  - Smart HTML stripping for clean preview text
 - ✅ **Kanban Board Interface** - Visual workflow with 4 columns (Inbox, To Do, Done, Snoozed)
   - Drag-and-drop emails between columns with smooth animations
   - Real-time status updates persisted to MongoDB
@@ -55,7 +61,10 @@ This project focuses on **AI-powered productivity features** rather than replica
 - **Frontend**: React 19 + TypeScript + Vite + TailwindCSS
 - **Backend**: Express.js + TypeScript + Gmail API
 - **Database**: MongoDB (Mongoose ODM) for email persistence and user data
-- **AI Service**: Google Gemini 1.5-flash API (@google/generative-ai SDK)
+- **Search Engine**: Fuse.js (fuzzy search) + Google text-embedding-004 (semantic search)
+- **AI Services**:
+  - Google Gemini 1.5-flash API (@google/generative-ai) for summarization
+  - Google text-embedding-004 for vector embeddings (768 dimensions)
 - **Auth**: OAuth2 Authorization Code Flow + JWT
 - **Deployment**: Vercel (Frontend) + Render (Backend) + MongoDB Atlas
 
@@ -233,6 +242,15 @@ POST   /api/emails/:id/summarize    // Generate AI summary (ephemeral)
 POST   /api/emails/:id/snooze       // Snooze email with timestamp
 ```
 
+#### Search
+
+```typescript
+GET    /api/search?q=query          // Fuzzy search with typo tolerance
+POST   /api/search/semantic         // Semantic search via embeddings
+       Body: { query: string, limit?: number }
+GET    /api/search/suggestions?q=query // Auto-complete suggestions
+```
+
 ### Frontend API Client
 
 ```typescript
@@ -244,6 +262,69 @@ const emails = await apiClient.get("/mailboxes/inbox-1/emails");
 
 // 401 errors trigger automatic refresh
 // Original request retries with new token
+```
+
+## 🔍 Search System
+
+### Dual-Mode Search Architecture
+
+#### 1. Fuzzy Search (Fuse.js)
+
+**Best for**: Keyword matching with typo tolerance
+
+- **Algorithm**: Bitap algorithm with configurable threshold (0.3)
+- **Searchable fields**: Subject (weight: 3), From name/email (weight: 2), Body (weight: 1)
+- **Features**:
+  - Typo tolerance (e.g., "outliar" finds "Outlier")
+  - Partial matching (e.g., "pass" finds "password")
+  - Exact match prioritization (bonus scoring)
+  - Fallback to substring search if no fuzzy results
+- **Performance**: O(n) where n = total emails in MongoDB
+
+**Implementation**: `backend/src/routes/emails.ts` - GET `/api/search`
+
+#### 2. Semantic Search (Vector Embeddings)
+
+**Best for**: Conceptual/meaning-based search
+
+- **Model**: Google text-embedding-004 (768 dimensions)
+- **Storage**: MongoDB with vector fields (embedding, embeddingModel, embeddingDim)
+- **Similarity**: Cosine similarity with threshold > 0.2
+- **Features**:
+  - Finds emails by meaning, not just keywords
+  - Example: "urgent" finds "immediate action required", "ASAP"
+  - Model-specific filtering prevents dimension mismatches
+  - Embeddings generated on email sync, cached in DB
+- **Performance**: O(n × 768) similarity computation
+
+**Implementation**: `backend/src/services/embeddingService.ts` + POST `/api/search/semantic`
+
+### Search Flow Diagram
+
+```
+User Types Query
+       ↓
+   ┌───────────┐
+   │ Frontend  │
+   │ SearchBar │
+   └─────┬─────┘
+         │
+    ┌────┴────┐
+    │ Fuzzy   │  Semantic
+    ↓         ↓
+┌───────┐  ┌──────────┐
+│Fuse.js│  │Embedding │
+│ Match │  │Similarity│
+└───┬───┘  └────┬─────┘
+    │           │
+    └─────┬─────┘
+          ↓
+    ┌──────────┐
+    │ MongoDB  │
+    │  Filter  │
+    └─────┬────┘
+          ↓
+      Results
 ```
 
 ## 🎨 UI Components
