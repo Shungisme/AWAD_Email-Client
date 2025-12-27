@@ -5,8 +5,19 @@ import {
   Trash2,
   Save,
   Settings,
-  MoveUp,
-  MoveDown,
+  Inbox,
+  Clock,
+  CheckCircle,
+  Star,
+  Archive,
+  Mail,
+  Send,
+  AlertCircle,
+  Zap,
+  Target,
+  Flag,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
 import type { KanbanColumn } from "../../api/kanban.api";
 import { getKanbanConfig, updateKanbanConfig } from "../../api/kanban.api";
@@ -43,6 +54,20 @@ const AVAILABLE_COLORS = [
   "bg-teal-500",
   "bg-gray-500",
 ];
+
+const ICON_COMPONENTS: Record<string, React.ReactNode> = {
+  Inbox: <Inbox className="w-5 h-5 text-white" />,
+  Clock: <Clock className="w-5 h-5 text-white" />,
+  CheckCircle: <CheckCircle className="w-5 h-5 text-white" />,
+  Star: <Star className="w-5 h-5 text-white" />,
+  Archive: <Archive className="w-5 h-5 text-white" />,
+  Mail: <Mail className="w-5 h-5 text-white" />,
+  Send: <Send className="w-5 h-5 text-white" />,
+  AlertCircle: <AlertCircle className="w-5 h-5 text-white" />,
+  Zap: <Zap className="w-5 h-5 text-white" />,
+  Target: <Target className="w-5 h-5 text-white" />,
+  Flag: <Flag className="w-5 h-5 text-white" />,
+};
 
 const GMAIL_LABELS = [
   { value: "INBOX", label: "Inbox" },
@@ -342,19 +367,19 @@ const KanbanSettings: React.FC<KanbanSettingsProps> = ({
                           disabled={index === 0}
                           className="text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
                         >
-                          <MoveUp className="w-4 h-4" />
+                          <ChevronUp className="w-5 h-5" />
                         </button>
                         <button
                           onClick={() => handleMoveColumn(column.id, "down")}
                           disabled={index === columns.length - 1}
                           className="text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
                         >
-                          <MoveDown className="w-4 h-4" />
+                          <ChevronDown className="w-5 h-5" />
                         </button>
                       </div>
 
                       {/* Title */}
-                      <div className="col-span-3">
+                      <div className="col-span-2">
                         <label className="block text-xs font-medium text-gray-700 mb-1">
                           Title
                         </label>
@@ -402,27 +427,35 @@ const KanbanSettings: React.FC<KanbanSettingsProps> = ({
                       </div>
 
                       {/* Icon */}
-                      <div className="col-span-2">
+                      <div className="col-span-3">
                         <label className="block text-xs font-medium text-gray-700 mb-1">
                           Icon
                         </label>
-                        <select
-                          value={column.icon}
-                          onChange={(e) =>
-                            handleUpdateColumn(
-                              column.id,
-                              "icon",
-                              e.target.value
-                            )
-                          }
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-                        >
-                          {AVAILABLE_ICONS.map((icon) => (
-                            <option key={icon} value={icon}>
-                              {icon}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={column.icon}
+                            onChange={(e) =>
+                              handleUpdateColumn(
+                                column.id,
+                                "icon",
+                                e.target.value
+                              )
+                            }
+                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                          >
+                            {AVAILABLE_ICONS.map((icon) => (
+                              <option key={icon} value={icon}>
+                                {icon}
+                              </option>
+                            ))}
+                          </select>
+
+                          <div className={`h-9 w-9 rounded ${column.color} border flex items-center justify-center flex-shrink-0`}>
+                            {ICON_COMPONENTS[column.icon] || (
+                              <div className="text-gray-400 text-xs">?</div>
+                            )}
+                          </div>
+                        </div>
                       </div>
 
                       {/* Gmail Label */}
