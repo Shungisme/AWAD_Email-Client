@@ -51,8 +51,9 @@ const Login: React.FC = () => {
 
     try {
       await login({ email, password });
-    } catch (err: any) {
-      setError(err.message || "Login failed. Please try again.");
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "Login failed. Please try again.";
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -70,8 +71,9 @@ const Login: React.FC = () => {
 
       // Redirect to Google OAuth consent screen
       window.location.href = url;
-    } catch (err: any) {
-      setError("Failed to initiate Gmail login. Please try again.");
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to initiate Gmail login. Please try again.";
+      setError(errorMessage);
       setLoading(false);
     }
   };
@@ -79,21 +81,20 @@ const Login: React.FC = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 px-4">
       <div className="max-w-md w-full">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-600 rounded-2xl mb-4">
-            <Mail className="w-8 h-8 text-white" />
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Welcome Back
-          </h1>
-          <p className="text-gray-600">
-            Sign in to access your email dashboard
-          </p>
-        </div>
-
         {/* Login Card */}
         <div className="bg-white rounded-2xl shadow-xl p-8">
+          {/* Header */}
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-600 rounded-2xl mb-4">
+              <Mail className="w-8 h-8 text-white" />
+            </div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+              Welcome Back
+            </h1>
+            <p className="text-gray-600">
+              Sign in to access your email dashboard
+            </p>
+          </div>
           {/* Error Message */}
           {error && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
@@ -139,7 +140,7 @@ const Login: React.FC = () => {
           </button>
 
           {/* Divider */}
-          <div className="relative my-6">
+          <div className="relative mb-2">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-gray-300"></div>
             </div>
@@ -170,7 +171,7 @@ const Login: React.FC = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors"
-                  placeholder="example@example.com"
+                  placeholder="demo@example.com"
                   disabled={loading}
                 />
               </div>

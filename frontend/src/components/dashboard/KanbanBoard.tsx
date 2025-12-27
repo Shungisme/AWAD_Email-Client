@@ -73,6 +73,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
   const [sortBy, setSortBy] = useState<"newest" | "oldest">("newest");
   const [filterUnread, setFilterUnread] = useState(false);
   const [filterAttachments, setFilterAttachments] = useState(false);
+  const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
 
   // Load Kanban configuration
   useEffect(() => {
@@ -577,16 +578,57 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
             {/* Sort Dropdown */}
             <div className="flex items-center gap-2">
               <ArrowUpDown className="w-4 h-4 text-gray-500" />
-              <select
-                value={sortBy}
-                onChange={(e) =>
-                  setSortBy(e.target.value as "newest" | "oldest")
-                }
-                className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              >
-                <option value="newest">Date: Newest First</option>
-                <option value="oldest">Date: Oldest First</option>
-              </select>
+              <div className="relative">
+                <button
+                  onClick={() => setSortDropdownOpen(!sortDropdownOpen)}
+                  className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:ring-2 focus:ring-primary-500 focus:border-transparent flex items-center gap-2 min-w-[140px] justify-between"
+                >
+                  <span className="font-medium text-gray-700">
+                    {sortBy === "newest" ? "Date: Newest First" : "Date: Oldest First"}
+                  </span>
+                  <svg
+                    className={`w-4 h-4 transition-transform ${sortDropdownOpen ? 'rotate-180' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {sortDropdownOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-10"
+                      onClick={() => setSortDropdownOpen(false)}
+                    />
+                    <div className="absolute top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 w-full">
+                      <button
+                        onClick={() => {
+                          setSortBy("newest");
+                          setSortDropdownOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-100 transition-colors ${
+                          sortBy === "newest" ? "bg-primary-50 text-primary-700 font-medium" : "text-gray-700"
+                        }`}
+                      >
+                        Date: Newest First
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSortBy("oldest");
+                          setSortDropdownOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-100 transition-colors ${
+                          sortBy === "oldest" ? "bg-primary-50 text-primary-700 font-medium" : "text-gray-700"
+                        }`}
+                      >
+                        Date: Oldest First
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
 
             {/* Filter Buttons */}

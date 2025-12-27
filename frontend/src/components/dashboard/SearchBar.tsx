@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Search, Loader2, X } from "lucide-react";
+import { Search, Loader2, X, Sparkles, Target } from "lucide-react";
 import { getSearchSuggestions } from "../../api/emails.api";
 
 interface SearchBarProps {
@@ -146,7 +146,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
             className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             disabled={loading}
           />
-          {query && (
+          {query && !loadingSuggestions && (
             <button
               onClick={handleClear}
               className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
@@ -155,7 +155,9 @@ const SearchBar: React.FC<SearchBarProps> = ({
             </button>
           )}
           {loadingSuggestions && (
-            <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 text-blue-500 w-5 h-5 animate-spin" />
+            <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center justify-center">
+              <Loader2 className="text-blue-500 w-5 h-5 animate-spin" />
+            </div>
           )}
 
           {/* Suggestions Dropdown */}
@@ -186,25 +188,27 @@ const SearchBar: React.FC<SearchBarProps> = ({
         <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
           <button
             onClick={() => setSearchType("semantic")}
-            className={`px-3 py-1 text-sm rounded transition-colors ${
+            className={`px-3 py-2 text-sm rounded-md transition-colors flex items-center gap-1.5 ${
               searchType === "semantic"
                 ? "bg-white text-blue-600 shadow-sm font-medium"
-                : "text-gray-600 hover:text-gray-800"
+                : "text-gray-600 hover:text-gray-800 font-medium"
             }`}
             title="Semantic search - Find conceptually related emails"
           >
-            🧠 Smart
+            <Sparkles className="w-4 h-4" />
+            Sematic
           </button>
           <button
             onClick={() => setSearchType("fuzzy")}
-            className={`px-3 py-1 text-sm rounded transition-colors ${
+            className={`px-3 py-2 text-sm rounded-md transition-colors flex items-center gap-1.5 ${
               searchType === "fuzzy"
                 ? "bg-white text-blue-600 shadow-sm font-medium"
-                : "text-gray-600 hover:text-gray-800"
+                : "text-gray-600 hover:text-gray-800 font-medium"
             }`}
             title="Fuzzy search - Find exact matches with typo tolerance"
           >
-            📝 Exact
+            <Target className="w-4 h-4" />
+            Fuzzy
           </button>
         </div>
 
@@ -212,7 +216,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
         <button
           onClick={() => handleSearch(query)}
           disabled={loading || !query.trim()}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed flex items-center gap-2"
         >
           {loading ? (
             <>

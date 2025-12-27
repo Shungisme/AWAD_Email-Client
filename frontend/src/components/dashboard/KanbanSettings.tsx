@@ -125,7 +125,6 @@ const KanbanSettings: React.FC<KanbanSettingsProps> = ({
   const [originalStatuses, setOriginalStatuses] = useState<
     Record<string, string>
   >({}); // Track original statuses for migration
-  const [migrationMap, setMigrationMap] = useState<Record<string, string>>({}); // Track id→status migrations
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -232,7 +231,7 @@ const KanbanSettings: React.FC<KanbanSettingsProps> = ({
   const handleUpdateColumn = (
     columnId: string,
     field: keyof KanbanColumn,
-    value: any
+    value: string | undefined
   ) => {
     // Validate Gmail label uniqueness
     if (field === "gmailLabel" && value && value !== "") {
@@ -253,7 +252,7 @@ const KanbanSettings: React.FC<KanbanSettingsProps> = ({
           if (field === "gmailLabel" || field === "title") {
             const newGmailLabel =
               field === "gmailLabel" ? value : col.gmailLabel;
-            const newTitle = field === "title" ? value : col.title;
+            const newTitle = field === "title" ? (value || col.title) : col.title;
             updatedCol.status = generateUniqueStatus(
               newGmailLabel,
               newTitle,
@@ -392,7 +391,7 @@ const KanbanSettings: React.FC<KanbanSettingsProps> = ({
                           >
                             {AVAILABLE_COLORS.map((color) => (
                               <option key={color} value={color}>
-                                {color.replace("bg-", "").replace("-500", "")}
+                                {color.replace("bg-", "").replace("-500", "").replace(/^\w/, c => c.toUpperCase())}
                               </option>
                             ))}
                           </select>
