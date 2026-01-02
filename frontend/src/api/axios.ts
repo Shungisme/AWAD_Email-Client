@@ -108,6 +108,7 @@ apiClient.interceptors.response.use(
       if (!refreshToken) {
         // No refresh token, logout user
         clearTokens();
+        window.dispatchEvent(new Event("auth:logout"));
         return Promise.reject(error);
       }
 
@@ -134,6 +135,7 @@ apiClient.interceptors.response.use(
         // Refresh failed, logout user
         processQueue(refreshError, null);
         clearTokens();
+        window.dispatchEvent(new Event("auth:logout"));
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

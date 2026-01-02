@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, useCallback } from "react";
+import React, { createContext, useState, useEffect, useCallback, useRef } from "react";
 import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import apiClient, {
@@ -8,6 +8,7 @@ import apiClient, {
   clearTokens,
 } from "../api/axios";
 import type { User, LoginCredentials, GoogleAuthRequest } from "../types";
+import AuthWorker from "../workers/auth.worker?sharedworker";
 
 interface AuthContextType {
   user: User | null;
@@ -32,6 +33,40 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const workerRef = useRef<SharedWorker | null>(null);
+
+  const handleLogout = useCallback(
+    (notifyWorker: boolean) => {
+      clearTokens();
+      setUser(null);
+
+      if (notifyWorker && workerRef.current) {
+        workerRef.current.port.postMessage({ type: "LOGOUT" });
+      }
+
+      navigate("/login");
+    },
+    [navigate]
+  );
+
+  useEffect(() => {
+    const worker = new AuthWorker();
+    workerRef.current = worker;
+
+    worker.port.start();
+
+    worker.port.onmessage = (event) => {
+      if (event.data.type === "LOGOUT") {
+        handleLogout(false);
+      }
+    };
+  }, [handleLogout]);
+
+  useEffect(() => {
+    const onForcedLogout = () => handleLogout(true);
+    window.addEventListener("auth:logout", onForcedLogout);
+    return () => window.removeEventListener("auth:logout", onForcedLogout);
+  }, [handleLogout]);
 
   // Check for existing refresh token on mount
   useEffect(() => {
@@ -106,9 +141,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const logout = () => {
-    clearTokens();
-    setUser(null);
-    navigate("/login");
+    handleLogout(true);
   };
 
   const setUserData = useCallback((userData: User) => {
