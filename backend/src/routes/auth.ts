@@ -16,6 +16,7 @@ import usersData from "../data/users.json";
 import gmailService from "../services/gmail";
 import tokenStore from "../services/tokenStore";
 import UserModel from "../models/User";
+import notificationManager from "../services/notification/NotificationManager";
 
 const router = express.Router();
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
@@ -274,6 +275,9 @@ router.get(
         tokens.access_token,
         tokens.expiry_date ?? undefined
       );
+
+      // Start watching for email updates
+      notificationManager.startWatch(user.id).catch(err => console.error("Failed to start watch:", err));
 
       // Generate app tokens
       const { accessToken, refreshToken } = generateTokens(user.id, user.email);

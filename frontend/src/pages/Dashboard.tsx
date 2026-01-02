@@ -11,9 +11,12 @@ import SearchResults from "../components/dashboard/SearchResults";
 import SearchBar from "../components/dashboard/SearchBar";
 import { LayoutGrid, List } from "lucide-react";
 import { semanticSearch } from "../api/emails.api";
+import { useSocket } from "../contexts/SocketContext";
+import toast, { Toaster } from "react-hot-toast";
 
 const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
+  const { socket } = useSocket();
   const [mailboxes, setMailboxes] = useState<Mailbox[]>([]);
   const [emails, setEmails] = useState<Email[]>([]);
   const [selectedMailbox, setSelectedMailbox] = useState<Mailbox | null>(null);
@@ -80,6 +83,39 @@ const Dashboard: React.FC = () => {
 
     fetchEmails();
   }, [selectedMailbox]);
+
+  // Listen for new emails via Socket.io
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleNewEmail = (newEmail: Email) => {
+      console.log("New email received:", newEmail);
+      
+      // Show toast notification
+      toast.success(`New email from ${newEmail.from.name || newEmail.from.email}: ${newEmail.subject}`, {
+        duration: 5000,
+        position: 'top-right',
+      });
+
+      // If we are viewing the Inbox, add the new email to the list
+      // Note: In a real app, we should check if the email belongs to the current mailbox
+      if (selectedMailbox?.name === newEmail.mailboxId) {
+        setEmails((prevEmails) => {
+          // Check if email already exists to avoid duplicates
+          if (prevEmails.some((e) => e.id === newEmail.id)) {
+            return prevEmails;
+          }
+          return [newEmail, ...prevEmails];
+        });
+      }
+    };
+
+    socket.on("email:new", handleNewEmail);
+
+    return () => {
+      socket.off("email:new", handleNewEmail);
+    };
+  }, [socket, selectedMailbox]);
 
   const handleMailboxSelect = (mailbox: Mailbox) => {
     setSelectedMailbox(mailbox);
@@ -287,6 +323,7 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="h-screen flex flex-col bg-gray-50">
+      <Toaster />
       {/* Header */}
       <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -450,6 +487,9 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Toast Notifications */}
+      <Toaster position="top-right" reverseOrder={false} />
     </div>
   );
 };

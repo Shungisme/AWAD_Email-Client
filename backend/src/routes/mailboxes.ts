@@ -102,7 +102,7 @@ router.get("/:id", async (req: Request, res: Response): Promise<void> => {
         const mailbox: Mailbox = {
           id: label.id!,
           userId,
-          name: label.name!,
+          name: convertToTitleCase(label.name!),
           icon: getIconForLabel(label.id!),
           unreadCount: label.messagesUnread || 0,
         };

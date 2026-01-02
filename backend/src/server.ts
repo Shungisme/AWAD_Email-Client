@@ -3,18 +3,25 @@ import dotenv from "dotenv";
 dotenv.config();
 
 import express, { Application, Request, Response } from "express";
+import { createServer } from "http";
 import cors from "cors";
 import connectDB from "./config/database";
 import authRoutes from "./routes/auth";
 import mailboxesRoutes from "./routes/mailboxes";
 import emailsRoutes from "./routes/emails";
 import kanbanRoutes from "./routes/kanban";
+import socketService from "./services/socketService";
+import "./services/notification/NotificationManager";
 
 // Connect to MongoDB
 connectDB();
 
 const app: Application = express();
+const httpServer = createServer(app);
 const PORT = process.env.PORT || 5000;
+
+// Initialize Socket.io
+socketService.initialize(httpServer);
 
 // Middleware
 app.use(
@@ -65,7 +72,7 @@ app.use((err: Error, req: Request, res: Response, next: any) => {
 });
 
 // Start server
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
   console.log(`
 
     📧  Email Dashboard API Server

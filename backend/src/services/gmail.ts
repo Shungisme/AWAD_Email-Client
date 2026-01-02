@@ -270,6 +270,41 @@ class GmailService {
 
     return response.data;
   }
+
+  /**
+   * Set up Gmail push notifications
+   */
+  async watch(userId: string, topicName: string) {
+    const gmail = await this.getGmailClient(userId);
+    const response = await gmail.users.watch({
+      userId: "me",
+      requestBody: {
+        topicName: topicName,
+      },
+    });
+
+    return response.data;
+  }
+
+  /**
+   * Stop Gmail push notifications
+   */
+  async stopWatch(userId: string) {
+    const gmail = await this.getGmailClient(userId);
+    await gmail.users.stop({ userId: "me" });
+  }
+
+  /**
+   * Get history of changes
+   */
+  async getHistory(userId: string, startHistoryId: string) {
+    const gmail = await this.getGmailClient(userId);
+    const response = await gmail.users.history.list({
+      userId: "me",
+      startHistoryId: startHistoryId,
+    });
+    return response.data.history || [];
+  }
 }
 
 // Singleton instance

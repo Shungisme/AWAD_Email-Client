@@ -5,6 +5,7 @@ export interface IUser extends Document {
   password?: string; // Optional for Google OAuth users
   name: string;
   googleId?: string | null;
+  latestHistoryId?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -27,6 +28,10 @@ const UserSchema = new Schema<IUser>(
       trim: true,
     },
     googleId: {
+      type: String,
+      required: false,
+    },
+    latestHistoryId: {
       type: String,
       required: false,
     },
