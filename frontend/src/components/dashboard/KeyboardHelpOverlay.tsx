@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { X, Keyboard } from 'lucide-react';
 
 interface KeyboardHelpOverlayProps {
@@ -7,6 +7,17 @@ interface KeyboardHelpOverlayProps {
 }
 
 const KeyboardHelpOverlay: React.FC<KeyboardHelpOverlayProps> = ({ isOpen, onClose }) => {
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (isOpen && e.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const shortcuts = [
