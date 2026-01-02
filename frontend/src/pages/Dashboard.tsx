@@ -13,16 +13,21 @@ import { LayoutGrid, List } from "lucide-react";
 import { semanticSearch } from "../api/emails.api";
 import { useSocket } from "../contexts/SocketContext";
 import toast, { Toaster } from "react-hot-toast";
+import { useMailboxes } from "../hooks/useMailboxes";
+import { useMailboxEmails } from "../hooks/useMailboxEmails";
+import { useOnlineStatus } from "../hooks/useOnlineStatus";
+import { cacheService } from "../services/cacheService";
 
 const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const { socket } = useSocket();
-  const [mailboxes, setMailboxes] = useState<Mailbox[]>([]);
-  const [emails, setEmails] = useState<Email[]>([]);
+  const isOnline = useOnlineStatus();
+  
+  const { mailboxes, loading: mailboxesLoading } = useMailboxes();
   const [selectedMailbox, setSelectedMailbox] = useState<Mailbox | null>(null);
+  const { emails, setEmails, loading: emailsLoading, refresh: refreshEmails } = useMailboxEmails(selectedMailbox?.id || null);
+
   const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [emailsLoading, setEmailsLoading] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"list" | "kanban">("kanban"); // Default to kanban
   const [composeMode, setComposeMode] = useState<{
@@ -38,51 +43,15 @@ const Dashboard: React.FC = () => {
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
 
-  // Fetch mailboxes on mount
+  // Select Inbox by default when mailboxes are loaded
   useEffect(() => {
-    const fetchMailboxes = async () => {
-      try {
-        const response = await apiClient.get("/mailboxes");
-        const mailboxesData = response.data.data || response.data;
-        setMailboxes(mailboxesData);
-        // Select Inbox by default
-        const inbox = mailboxesData.find((mb: Mailbox) => mb.name === "Inbox");
-        if (inbox) {
-          setSelectedMailbox(inbox);
-        }
-      } catch (error) {
-        console.error("Failed to fetch mailboxes:", error);
-      } finally {
-        setLoading(false);
+    if (mailboxes.length > 0 && !selectedMailbox) {
+      const inbox = mailboxes.find((mb: Mailbox) => mb.name === "Inbox");
+      if (inbox) {
+        setSelectedMailbox(inbox);
       }
-    };
-
-    fetchMailboxes();
-  }, []);
-
-  // Fetch emails when mailbox changes
-  useEffect(() => {
-    const fetchEmails = async () => {
-      if (!selectedMailbox) return;
-
-      setEmailsLoading(true);
-      try {
-        const response = await apiClient.get(
-          `/mailboxes/${selectedMailbox.id}/emails`
-        );
-        const emailsData = response.data.data || response.data;
-        setEmails(emailsData);
-        // Clear selected email when switching mailboxes
-        setSelectedEmail(null);
-      } catch (error) {
-        console.error("Failed to fetch emails:", error);
-      } finally {
-        setEmailsLoading(false);
-      }
-    };
-
-    fetchEmails();
-  }, [selectedMailbox]);
+    }
+  }, [mailboxes, selectedMailbox]);
 
   // Listen for new emails via Socket.io
   useEffect(() => {
@@ -105,7 +74,10 @@ const Dashboard: React.FC = () => {
           if (prevEmails.some((e) => e.id === newEmail.id)) {
             return prevEmails;
           }
-          return [newEmail, ...prevEmails];
+          const newEmails = [newEmail, ...prevEmails];
+          // Update cache
+          cacheService.saveEmails(newEmails);
+          return newEmails;
         });
       }
     };
@@ -115,7 +87,7 @@ const Dashboard: React.FC = () => {
     return () => {
       socket.off("email:new", handleNewEmail);
     };
-  }, [socket, selectedMailbox]);
+  }, [socket, selectedMailbox, setEmails]);
 
   const handleMailboxSelect = (mailbox: Mailbox) => {
     setSelectedMailbox(mailbox);
@@ -123,18 +95,31 @@ const Dashboard: React.FC = () => {
 
   const handleEmailSelect = async (email: Email) => {
     try {
-      // Fetch full email details
-      const response = await apiClient.get(`/emails/${email.id}`);
-      const emailData = response.data.data || response.data;
-      setSelectedEmail(emailData);
+      // Try cache first
+      const cachedEmail = await cacheService.getEmail(email.id);
+      if (cachedEmail) {
+        setSelectedEmail(cachedEmail);
+      } else {
+        setSelectedEmail(email);
+      }
 
-      // Mark as read if unread
-      if (!email.isRead) {
-        await apiClient.patch(`/emails/${email.id}`, { isRead: true });
-        // Update local state
-        setEmails(
-          emails.map((e) => (e.id === email.id ? { ...e, isRead: true } : e))
-        );
+      if (isOnline) {
+        // Fetch full email details
+        const response = await apiClient.get(`/emails/${email.id}`);
+        const emailData = response.data.data || response.data;
+        setSelectedEmail(emailData);
+        await cacheService.saveEmail(emailData);
+
+        // Mark as read if unread
+        if (!email.isRead) {
+          await apiClient.patch(`/emails/${email.id}`, { isRead: true });
+          // Update local state
+          setEmails(
+            emails.map((e) => (e.id === email.id ? { ...e, isRead: true } : e))
+          );
+          // Update cache
+          await cacheService.saveEmail({ ...emailData, isRead: true });
+        }
       }
     } catch (error) {
       console.error("Failed to fetch email details:", error);
@@ -194,9 +179,7 @@ const Dashboard: React.FC = () => {
   };
 
   const handleRefresh = () => {
-    if (selectedMailbox) {
-      setSelectedMailbox({ ...selectedMailbox });
-    }
+    refreshEmails();
   };
 
   // F2: Handle search (both fuzzy and semantic)
@@ -313,7 +296,7 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  if (loading) {
+  if (mailboxesLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
@@ -377,6 +360,13 @@ const Dashboard: React.FC = () => {
           </button>
         </div>
       </header>
+
+      {!isOnline && (
+        <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4" role="alert">
+          <p className="font-bold">Offline Mode</p>
+          <p>You are currently offline. Some features may be unavailable.</p>
+        </div>
+      )}
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">

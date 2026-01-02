@@ -8,6 +8,7 @@ import apiClient, {
   clearTokens,
 } from "../api/axios";
 import type { User, LoginCredentials, GoogleAuthRequest } from "../types";
+import { cacheService } from "../services/cacheService";
 import AuthWorker from "../workers/auth.worker?sharedworker";
 
 interface AuthContextType {
@@ -36,9 +37,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const workerRef = useRef<SharedWorker | null>(null);
 
   const handleLogout = useCallback(
-    (notifyWorker: boolean) => {
+    async (notifyWorker: boolean) => {
       clearTokens();
       setUser(null);
+      await cacheService.clearCache();
 
       if (notifyWorker && workerRef.current) {
         workerRef.current.port.postMessage({ type: "LOGOUT" });
