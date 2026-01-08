@@ -10,6 +10,18 @@ pipeline {
     // IMAGE_TAG will be set dynamically
     }
     stages {
+        stage('Setup') {
+            steps {
+                sh '''
+          export NVM_DIR="$HOME/.nvm"
+          [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+
+          nvm use 20
+          node -v
+          npm -v
+        '''
+            }
+        }
         stage('Detect Changes') {
             steps {
                 script {
