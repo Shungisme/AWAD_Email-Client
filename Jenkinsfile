@@ -21,7 +21,7 @@ pipeline {
         '''
             }
         }
-        stage('Detect Changes') {
+        stage('Detect Changes') {`
             steps {
                 script {
                     // If this is the first build, assume everything changed
@@ -45,7 +45,7 @@ pipeline {
             when { expression { return env.BACKEND_CHANGED == 'true' } }
             steps {
                 dir('backend') {
-                    sh 'npm ci'
+                    sh 'npm install'
                     sh 'npm run build'
                 // sh 'npm test'
                 }
@@ -56,7 +56,7 @@ pipeline {
             when { expression { return env.FRONTEND_CHANGED == 'true' } }
             steps {
                 dir('frontend') {
-                    sh 'npm ci'
+                    sh 'npm install'
                     sh 'npm run build'
                 // sh 'npm run lint'
                 }
