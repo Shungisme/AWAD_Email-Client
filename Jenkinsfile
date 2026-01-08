@@ -34,7 +34,7 @@ pipeline {
             when { expression { return env.BACKEND_CHANGED == 'true' } }
             steps {
                 dir('backend') {
-                    sh 'npm install'
+                    sh 'npm ci'
                     sh 'npm run build'
                 // sh 'npm test'
                 }
@@ -45,7 +45,7 @@ pipeline {
             when { expression { return env.FRONTEND_CHANGED == 'true' } }
             steps {
                 dir('frontend') {
-                    sh 'npm install'
+                    sh 'npm ci'
                     sh 'npm run build'
                 // sh 'npm run lint'
                 }
