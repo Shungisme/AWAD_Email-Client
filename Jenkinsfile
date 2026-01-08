@@ -21,7 +21,7 @@ pipeline {
         '''
             }
         }
-        stage('Detect Changes') {`
+        stage('Detect Changes') {
             steps {
                 script {
                     // If this is the first build, assume everything changed
