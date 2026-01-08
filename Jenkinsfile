@@ -87,11 +87,15 @@ pipeline {
                             def repoUrl = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${ECR_REPO_BACKEND}"
                             sh "docker tag ${ECR_REPO_BACKEND}:${IMAGE_TAG} ${repoUrl}:${IMAGE_TAG}"
                             sh "docker push ${repoUrl}:${IMAGE_TAG}"
+                            sh "docker rmi ${repoUrl}:${IMAGE_TAG}"
+                            sh "docker rmi ${ECR_REPO_BACKEND}:${IMAGE_TAG}"
                         }
                         if (env.FRONTEND_CHANGED == 'true') {
                             def repoUrl = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${ECR_REPO_FRONTEND}"
                             sh "docker tag ${ECR_REPO_FRONTEND}:${IMAGE_TAG} ${repoUrl}:${IMAGE_TAG}"
                             sh "docker push ${repoUrl}:${IMAGE_TAG}"
+                            sh "docker rmi ${repoUrl}:${IMAGE_TAG}"
+                            sh "docker rmi ${ECR_REPO_FRONTEND}:${IMAGE_TAG}"
                         }
                     }
                 }
@@ -209,19 +213,7 @@ try {
     post {
         always {
             script {
-                echo 'Cleaning up workspace and images...'
-                // Remove local images to save space
-                if (env.BACKEND_CHANGED == 'true') {
-                    sh "docker rmi ${ECR_REPO_BACKEND}:${IMAGE_TAG} || true"
-                    def repoUrl = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${ECR_REPO_BACKEND}"
-                    sh "docker rmi ${repoUrl}:${IMAGE_TAG} || true"
-                }
-                if (env.FRONTEND_CHANGED == 'true') {
-                    sh "docker rmi ${ECR_REPO_FRONTEND}:${IMAGE_TAG} || true"
-                    def repoUrl = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${ECR_REPO_FRONTEND}"
-                    sh "docker rmi ${repoUrl}:${IMAGE_TAG} || true"
-                }
-
+                echo 'Cleaning up workspace...'
                 // Clean up workspace
                 cleanWs()
             }
