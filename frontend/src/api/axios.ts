@@ -1,7 +1,8 @@
 import axios, { AxiosError } from "axios";
 import type { InternalAxiosRequestConfig } from "axios";
+import { API_URL as baseURL } from "../config";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const API_URL = baseURL || "http://localhost:5000/api";
 
 // Create axios instance
 const apiClient = axios.create({
