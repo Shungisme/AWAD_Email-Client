@@ -7,7 +7,7 @@ pipeline {
         ECR_REPO_BACKEND = 'awad-backend'
         EC2_HOST = 'ubuntu@3.84.120.134'
         AWS_SECRET_ID = 'awad/prod/env'
-        // IMAGE_TAG will be set dynamically
+    // IMAGE_TAG will be set dynamically
     }
     stages {
         stage('Detect Changes') {
@@ -29,14 +29,14 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Build & Test Backend') {
             when { expression { return env.BACKEND_CHANGED == 'true' } }
             steps {
                 dir('backend') {
                     sh 'npm install'
                     sh 'npm run build'
-                    // sh 'npm test' 
+                // sh 'npm test'
                 }
             }
         }
@@ -47,7 +47,7 @@ pipeline {
                 dir('frontend') {
                     sh 'npm install'
                     sh 'npm run build'
-                    // sh 'npm run lint'
+                // sh 'npm run lint'
                 }
             }
         }
@@ -70,7 +70,7 @@ pipeline {
                 withCredentials([usernamePassword(credentialsId: 'aws-credentials', passwordVariable: 'AWS_SECRET_ACCESS_KEY', usernameVariable: 'AWS_ACCESS_KEY_ID')]) {
                     script {
                         sh "aws ecr get-login-password --region ${AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
-                        
+
                         if (env.BACKEND_CHANGED == 'true') {
                             def repoUrl = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${ECR_REPO_BACKEND}"
                             sh "docker tag ${ECR_REPO_BACKEND}:${IMAGE_TAG} ${repoUrl}:${IMAGE_TAG}"
@@ -93,7 +93,6 @@ pipeline {
                         def nodeScript = """
 const fs = require('fs');
 const { execSync } = require('child_process');
-
 
 const secretId = process.env.AWS_SECRET_ID;
 const region = process.env.AWS_DEFAULT_REGION;
@@ -161,12 +160,12 @@ try {
     process.exit(1);
 }
 """
-                    writeFile file: 'provision_secrets.js', text: nodeScript
-                    sh "node provision_secrets.js"
-                    sh "rm provision_secrets.js secrets.json"
+                        writeFile file: 'provision_secrets.js', text: nodeScript
+                        sh 'node provision_secrets.js'
+                        sh 'rm provision_secrets.js secrets.json'
+                    }
                 }
             }
-        }
         }
 
         stage('Deploy to EC2') {
@@ -174,17 +173,17 @@ try {
                 sshagent(['ec2-ssh-key']) {
                     // Copy docker-compose.prod.yml to EC2 as docker-compose.yml
                     sh "scp -o StrictHostKeyChecking=no docker-compose.prod.yml ${EC2_HOST}:~/docker-compose.yml"
-                    
+
                     // Deploy using the helper script installed by Terraform user_data
                     sh """
                         ssh -o StrictHostKeyChecking=no ${EC2_HOST} '
                             export IMAGE_TAG=${IMAGE_TAG}
                             export AWS_ACCOUNT_ID=${AWS_ACCOUNT_ID}
                             export AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION}
-                            
+
                             # Login to ECR (still needed for pull)
                             aws ecr get-login-password --region ${AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com
-                            
+
                             # Use the helper script to deploy
                             # This fetches the secret, writes .env, and restarts compose
                             /usr/local/bin/deploy-app.sh ${AWS_SECRET_ID}
@@ -210,7 +209,7 @@ try {
                     def repoUrl = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${ECR_REPO_FRONTEND}"
                     sh "docker rmi ${repoUrl}:${IMAGE_TAG} || true"
                 }
-                
+
                 // Clean up workspace
                 cleanWs()
             }
