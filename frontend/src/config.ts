@@ -12,6 +12,6 @@ export const getEnv = (key: string, defaultValue: string = ''): string => {
   }
   return import.meta.env[key] || defaultValue;
 };
-// Env
+
 export const API_URL = getEnv('VITE_API_URL', 'http://localhost:5000/api');
 export const GOOGLE_CLIENT_ID = getEnv('VITE_GOOGLE_CLIENT_ID', '');
