@@ -74,6 +74,7 @@ app.use((err: Error, req: Request, res: Response, next: any) => {
 // Start server
 httpServer.listen(PORT, () => {
   console.log(`
+
     📧  Email Dashboard API Server
     🚀  Server running on port ${PORT}                    
     🌐  API: http://localhost:${PORT}                    
