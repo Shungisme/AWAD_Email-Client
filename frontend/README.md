@@ -2,7 +2,7 @@
 
 Production-grade React application with TypeScript, OAuth authentication, and modern UI.
 
-## Ì∫Ä Features
+## ÔøΩÔøΩÔøΩ Features
 
 - React 19 + TypeScript + Vite
 - Tailwind CSS for styling
@@ -13,7 +13,7 @@ Production-grade React application with TypeScript, OAuth authentication, and mo
 - DOMPurify for XSS protection
 - Responsive 3-column layout
 
-## Ìª†Ô∏è Installation
+## ÔøΩÔøΩÔøΩÔ∏è Installation
 
 ```bash
 # Install dependencies
@@ -26,7 +26,7 @@ npm run dev
 npm run build
 ```
 
-## Ì¥ê Environment Variables
+## ÔøΩÔøΩÔøΩ Environment Variables
 
 Create `.env` file:
 
@@ -48,6 +48,7 @@ VITE_GOOGLE_CLIENT_ID=your_google_client_id
 - dompurify - HTML sanitization
 - lucide-react - Icon library
 
-## Ì∫Ä Deploy
+## ÔøΩÔøΩÔøΩ Deploy
 
 See main project README for deployment instructions.
+

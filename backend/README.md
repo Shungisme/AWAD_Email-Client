@@ -388,5 +388,3 @@ npm start
 ## 🤝 Support
 
 For issues or questions, please refer to the main project README.
-
-
