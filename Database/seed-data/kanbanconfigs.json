@@ -1,0 +1,95 @@
+[
+  {
+    "_id": "kanban_config_001",
+    "userId": "demo_user_001",
+    "columns": [
+      {
+        "id": "col-inbox",
+        "status": "inbox",
+        "title": "Inbox",
+        "color": "bg-blue-500",
+        "icon": "Inbox",
+        "gmailLabel": "INBOX",
+        "order": 0
+      },
+      {
+        "id": "col-todo",
+        "status": "todo",
+        "title": "To Do",
+        "color": "bg-yellow-500",
+        "icon": "Clock",
+        "gmailLabel": "STARRED",
+        "order": 1
+      },
+      {
+        "id": "col-in-progress",
+        "status": "in-progress",
+        "title": "In Progress",
+        "color": "bg-orange-500",
+        "icon": "PlayCircle",
+        "order": 2
+      },
+      {
+        "id": "col-done",
+        "status": "done",
+        "title": "Done",
+        "color": "bg-green-500",
+        "icon": "CheckCircle",
+        "order": 3
+      },
+      {
+        "id": "col-snoozed",
+        "status": "snoozed",
+        "title": "Snoozed",
+        "color": "bg-purple-500",
+        "icon": "Clock",
+        "order": 4
+      }
+    ],
+    "createdAt": "2026-01-20T00:00:00.000Z",
+    "updatedAt": "2026-01-20T00:00:00.000Z"
+  },
+  {
+    "_id": "kanban_config_002",
+    "userId": "admin_user_001",
+    "columns": [
+      {
+        "id": "col-inbox",
+        "status": "inbox",
+        "title": "Inbox",
+        "color": "bg-blue-500",
+        "icon": "Inbox",
+        "gmailLabel": "INBOX",
+        "order": 0
+      },
+      {
+        "id": "col-urgent",
+        "status": "urgent",
+        "title": "Urgent",
+        "color": "bg-red-500",
+        "icon": "AlertCircle",
+        "gmailLabel": "IMPORTANT",
+        "order": 1
+      },
+      {
+        "id": "col-todo",
+        "status": "todo",
+        "title": "To Do",
+        "color": "bg-yellow-500",
+        "icon": "Clock",
+        "gmailLabel": "STARRED",
+        "order": 2
+      },
+      {
+        "id": "col-done",
+        "status": "done",
+        "title": "Done",
+        "color": "bg-green-500",
+        "icon": "CheckCircle",
+        "order": 3
+      }
+    ],
+    "createdAt": "2026-01-20T00:00:00.000Z",
+    "updatedAt": "2026-01-20T00:00:00.000Z"
+  }
+]

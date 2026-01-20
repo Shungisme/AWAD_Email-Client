@@ -1,0 +1,31 @@
+[
+  {
+    "_id": "demo_user_001",
+    "email": "demo@example.com",
+    "password": "$2a$10$xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "name": "Demo User",
+    "googleId": null,
+    "latestHistoryId": null,
+    "createdAt": "2026-01-20T00:00:00.000Z",
+    "updatedAt": "2026-01-20T00:00:00.000Z"
+  },
+  {
+    "_id": "admin_user_001",
+    "email": "admin@example.com",
+    "password": "$2a$10$xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "name": "Admin User",
+    "googleId": null,
+    "latestHistoryId": null,
+    "createdAt": "2026-01-20T00:00:00.000Z",
+    "updatedAt": "2026-01-20T00:00:00.000Z"
+  },
+  {
+    "_id": "oauth_user_001",
+    "email": "user@gmail.com",
+    "name": "OAuth User",
+    "googleId": "1234567890123456789",
+    "latestHistoryId": "98765",
+    "createdAt": "2026-01-20T00:00:00.000Z",
+    "updatedAt": "2026-01-20T00:00:00.000Z"
+  }
+]

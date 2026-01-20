@@ -1,0 +1,141 @@
+[
+  {
+    "_id": "email_001",
+    "emailId": "gmail_msg_001",
+    "threadId": "thread_001",
+    "userId": "demo_user_001",
+    "subject": "Welcome to Email Dashboard",
+    "from": {
+      "name": "System",
+      "email": "system@emaildashboard.com"
+    },
+    "to": [
+      {
+        "name": "Demo User",
+        "email": "demo@example.com"
+      }
+    ],
+    "cc": [],
+    "body": "Welcome to Email Dashboard! This is your first email. You can organize your emails using Kanban board, search with semantic search, and much more.",
+    "bodySnippet": "Welcome to Email Dashboard! This is your first email...",
+    "timestamp": "2026-01-20T08:00:00.000Z",
+    "attachments": [],
+    "labels": ["INBOX", "UNREAD"],
+    "mailboxId": "inbox",
+    "status": "inbox",
+    "snoozeUntil": null,
+    "isRead": false,
+    "isStarred": false,
+    "createdAt": "2026-01-20T08:00:00.000Z",
+    "updatedAt": "2026-01-20T08:00:00.000Z"
+  },
+  {
+    "_id": "email_002",
+    "emailId": "gmail_msg_002",
+    "threadId": "thread_002",
+    "userId": "demo_user_001",
+    "subject": "Project Update Meeting",
+    "from": {
+      "name": "John Doe",
+      "email": "john.doe@company.com"
+    },
+    "to": [
+      {
+        "name": "Demo User",
+        "email": "demo@example.com"
+      }
+    ],
+    "cc": [
+      {
+        "name": "Jane Smith",
+        "email": "jane.smith@company.com"
+      }
+    ],
+    "body": "Hi Team,\n\nLet's schedule a meeting next week to discuss the project updates. Please share your availability.\n\nBest regards,\nJohn",
+    "bodySnippet": "Let's schedule a meeting next week to discuss the project updates...",
+    "timestamp": "2026-01-19T14:30:00.000Z",
+    "attachments": [
+      {
+        "filename": "project_report.pdf",
+        "mimeType": "application/pdf",
+        "size": 245678,
+        "attachmentId": "att_001"
+      }
+    ],
+    "labels": ["INBOX", "IMPORTANT"],
+    "mailboxId": "inbox",
+    "status": "todo",
+    "snoozeUntil": null,
+    "isRead": true,
+    "isStarred": true,
+    "createdAt": "2026-01-19T14:30:00.000Z",
+    "updatedAt": "2026-01-19T15:00:00.000Z"
+  },
+  {
+    "_id": "email_003",
+    "emailId": "gmail_msg_003",
+    "threadId": "thread_003",
+    "userId": "demo_user_001",
+    "subject": "Invoice #12345",
+    "from": {
+      "name": "Billing Department",
+      "email": "billing@company.com"
+    },
+    "to": [
+      {
+        "name": "Demo User",
+        "email": "demo@example.com"
+      }
+    ],
+    "cc": [],
+    "body": "Dear Customer,\n\nPlease find attached your invoice for this month. Payment is due within 30 days.\n\nThank you!",
+    "bodySnippet": "Please find attached your invoice for this month...",
+    "timestamp": "2026-01-18T10:15:00.000Z",
+    "attachments": [
+      {
+        "filename": "invoice_12345.pdf",
+        "mimeType": "application/pdf",
+        "size": 125890,
+        "attachmentId": "att_002"
+      }
+    ],
+    "labels": ["INBOX"],
+    "mailboxId": "inbox",
+    "status": "done",
+    "snoozeUntil": null,
+    "isRead": true,
+    "isStarred": false,
+    "createdAt": "2026-01-18T10:15:00.000Z",
+    "updatedAt": "2026-01-19T09:00:00.000Z"
+  },
+  {
+    "_id": "email_004",
+    "emailId": "gmail_msg_004",
+    "threadId": "thread_004",
+    "userId": "demo_user_001",
+    "subject": "Weekly Newsletter",
+    "from": {
+      "name": "Newsletter Team",
+      "email": "newsletter@techblog.com"
+    },
+    "to": [
+      {
+        "name": "Demo User",
+        "email": "demo@example.com"
+      }
+    ],
+    "cc": [],
+    "body": "This week's top tech stories:\n\n1. AI Breakthrough in Natural Language Processing\n2. New Framework Release\n3. Cloud Computing Trends\n\nRead more at techblog.com",
+    "bodySnippet": "This week's top tech stories...",
+    "timestamp": "2026-01-17T09:00:00.000Z",
+    "attachments": [],
+    "labels": ["INBOX", "CATEGORY_UPDATES"],
+    "mailboxId": "inbox",
+    "status": "inbox",
+    "snoozeUntil": "2026-01-22T09:00:00.000Z",
+    "isRead": true,
+    "isStarred": false,
+    "createdAt": "2026-01-17T09:00:00.000Z",
+    "updatedAt": "2026-01-17T10:00:00.000Z"
+  }
+]
