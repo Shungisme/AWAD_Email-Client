@@ -11,8 +11,21 @@ export class PullStrategy implements NotificationStrategy {
   private subscription: any;
 
   constructor() {
+    // Load credentials from environment variable
+    let credentials;
+    if (process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
+      try {
+        // Parse the JSON string from environment variable
+        credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY);
+        console.log('✓ Google Cloud service account credentials loaded from environment');
+      } catch (error) {
+        console.error('❌ Failed to parse GOOGLE_SERVICE_ACCOUNT_KEY:', error);
+      }
+    }
+
     this.pubSubClient = new PubSub({
-      projectId: process.env.GOOGLE_PROJECT_ID
+      projectId: process.env.GOOGLE_PROJECT_ID,
+      ...(credentials && { credentials })
     });
     this.subscriptionName = process.env.GMAIL_SUBSCRIPTION_NAME || 'gmail-updates-sub';
   }
