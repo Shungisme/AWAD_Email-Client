@@ -10,6 +10,7 @@ const apiClient = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
+  withCredentials: true, // Enable cookies for session management
 });
 
 // In-memory access token storage
@@ -72,7 +73,7 @@ apiClient.interceptors.request.use(
   },
   (error) => {
     return Promise.reject(error);
-  }
+  },
 );
 
 // Response interceptor - Handle token refresh on 401
@@ -104,20 +105,13 @@ apiClient.interceptors.response.use(
       originalRequest._retry = true;
       isRefreshing = true;
 
-      const refreshToken = getRefreshToken();
-
-      if (!refreshToken) {
-        // No refresh token, logout user
-        clearTokens();
-        window.dispatchEvent(new Event("auth:logout"));
-        return Promise.reject(error);
-      }
-
       try {
-        // Call refresh endpoint
-        const response = await axios.post(`${API_URL}/auth/refresh`, {
-          refreshToken,
-        });
+        // Call refresh endpoint (uses httpOnly cookie for authentication)
+        const response = await axios.post(
+          `${API_URL}/auth/refresh`,
+          {},
+          { withCredentials: true },
+        );
 
         const { accessToken: newAccessToken } = response.data;
 
@@ -144,7 +138,7 @@ apiClient.interceptors.response.use(
     }
 
     return Promise.reject(error);
-  }
+  },
 );
 
 export default apiClient;

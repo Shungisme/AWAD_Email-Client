@@ -21,6 +21,42 @@ import notificationManager from "../services/notification/NotificationManager";
 const router = express.Router();
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
+// Cookie configuration
+const COOKIE_NAME = "auth_session";
+const COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+// Helper function to parse cookies from request
+const parseCookies = (cookieHeader?: string): Record<string, string> => {
+  const cookies: Record<string, string> = {};
+  if (!cookieHeader) return cookies;
+
+  cookieHeader.split(";").forEach((cookie) => {
+    const [name, ...rest] = cookie.split("=");
+    const value = rest.join("=").trim();
+    if (name && value) {
+      cookies[name.trim()] = decodeURIComponent(value);
+    }
+  });
+
+  return cookies;
+};
+
+// Helper function to set auth cookie
+const setAuthCookie = (res: Response, userId: string): void => {
+  res.cookie(COOKIE_NAME, userId, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: COOKIE_MAX_AGE,
+  });
+};
+
+// Helper function to get userId from cookie
+const getUserIdFromCookie = (req: Request): string | null => {
+  const cookies = parseCookies(req.headers.cookie);
+  return cookies[COOKIE_NAME] || null;
+};
+
 // Helper function to generate tokens
 const generateTokens = (userId: string, email: string) => {
   const SECRET = process.env.JWT_SECRET!;
@@ -149,10 +185,16 @@ router.post("/login", async (req: Request, res: Response): Promise<void> => {
     // Generate tokens
     const { accessToken, refreshToken } = generateTokens(user.id, user.email);
 
+    // Store refresh token server-side
+    tokenStore.setAppRefreshToken(user.id, refreshToken);
+
+    // Set httpOnly cookie for session management
+    setAuthCookie(res, user.id);
+
     const response: AuthResponse = {
       success: true,
       accessToken,
-      refreshToken,
+      refreshToken: "", // Don't send refresh token to frontend
       user: sanitizeUser(user),
     };
 
@@ -276,8 +318,14 @@ router.get(
       // Generate app tokens
       const { accessToken, refreshToken } = generateTokens(user.id, user.email);
 
-      // Redirect to frontend with tokens in URL params (frontend will store them)
-      const redirectUrl = `${process.env.FRONTEND_URL}/auth/callback?accessToken=${accessToken}&refreshToken=${refreshToken}`;
+      // Store refresh token server-side
+      tokenStore.setAppRefreshToken(user.id, refreshToken);
+
+      // Set httpOnly cookie for session management
+      setAuthCookie(res, user.id);
+
+      // Redirect to frontend with only access token (refresh token stays server-side)
+      const redirectUrl = `${process.env.FRONTEND_URL}/auth/callback?accessToken=${accessToken}`;
       res.redirect(redirectUrl);
     } catch (error) {
       console.error("Google OAuth callback error:", error);
@@ -378,10 +426,16 @@ router.post("/google", async (req: Request, res: Response): Promise<void> => {
     // Generate tokens
     const { accessToken, refreshToken } = generateTokens(user.id, user.email);
 
+    // Store refresh token server-side
+    tokenStore.setAppRefreshToken(user.id, refreshToken);
+
+    // Set httpOnly cookie for session management
+    setAuthCookie(res, user.id);
+
     const response: AuthResponse = {
       success: true,
       accessToken,
-      refreshToken,
+      refreshToken: "", // Don't send refresh token to frontend
       user: sanitizeUser(user),
     };
 
@@ -398,12 +452,24 @@ router.post("/google", async (req: Request, res: Response): Promise<void> => {
 // POST /api/auth/refresh - Refresh Access Token
 router.post("/refresh", async (req: Request, res: Response): Promise<void> => {
   try {
-    const { refreshToken }: RefreshTokenRequest = req.body;
+    // Get userId from cookie (not from request body)
+    const userId = getUserIdFromCookie(req);
 
-    if (!refreshToken) {
-      res.status(400).json({
+    if (!userId) {
+      res.status(401).json({
         success: false,
-        message: "Refresh token is required",
+        message: "No active session found",
+      });
+      return;
+    }
+
+    // Get stored refresh token from server-side storage
+    const storedRefreshToken = tokenStore.getAppRefreshToken(userId);
+
+    if (!storedRefreshToken) {
+      res.status(401).json({
+        success: false,
+        message: "No refresh token found for user",
       });
       return;
     }
@@ -411,9 +477,18 @@ router.post("/refresh", async (req: Request, res: Response): Promise<void> => {
     // Verify refresh token signature
     try {
       const decoded = jwt.verify(
-        refreshToken,
+        storedRefreshToken,
         process.env.JWT_REFRESH_SECRET as string,
       ) as JwtPayload;
+
+      // Verify the token belongs to the user in the cookie
+      if (decoded.userId !== userId) {
+        res.status(401).json({
+          success: false,
+          message: "Token mismatch",
+        });
+        return;
+      }
 
       // Generate new access token
       const SECRET = process.env.JWT_SECRET!;
@@ -425,6 +500,9 @@ router.post("/refresh", async (req: Request, res: Response): Promise<void> => {
         { expiresIn: ACCESS_EXPIRY },
       );
 
+      // Refresh the cookie
+      setAuthCookie(res, userId);
+
       const response: RefreshResponse = {
         success: true,
         accessToken,
@@ -432,6 +510,9 @@ router.post("/refresh", async (req: Request, res: Response): Promise<void> => {
 
       res.json(response);
     } catch (error) {
+      // Token invalid or expired, remove stored token
+      tokenStore.setAppRefreshToken(userId, "");
+
       res.status(401).json({
         success: false,
         message: "Invalid or expired refresh token",
@@ -449,9 +530,16 @@ router.post("/refresh", async (req: Request, res: Response): Promise<void> => {
 // POST /api/auth/logout - Logout
 router.post("/logout", async (req: Request, res: Response): Promise<void> => {
   try {
-    const authHeader = req.headers.authorization;
+    // Get userId from cookie
+    const userId = getUserIdFromCookie(req);
 
-    // Extract userId from access token if available
+    if (userId) {
+      // Remove app refresh token
+      tokenStore.setAppRefreshToken(userId, "");
+    }
+
+    // Also try to get userId from access token if available
+    const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith("Bearer ")) {
       const token = authHeader.substring(7);
       try {
@@ -460,12 +548,19 @@ router.post("/logout", async (req: Request, res: Response): Promise<void> => {
           process.env.JWT_SECRET as string,
         ) as JwtPayload;
 
-        // Remove Gmail tokens for this user
-        tokenStore.deleteToken(decoded.userId);
+        // Remove app refresh token
+        tokenStore.setAppRefreshToken(decoded.userId, "");
       } catch (error) {
         // Token invalid or expired, ignore
       }
     }
+
+    // Clear the cookie
+    res.clearCookie(COOKIE_NAME, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+    });
 
     res.json({
       success: true,

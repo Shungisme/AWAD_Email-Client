@@ -11,10 +11,11 @@ import path from "path";
 
 interface TokenData {
   userId: string;
-  refreshToken: string;
+  refreshToken: string; // Gmail OAuth refresh token
   accessToken?: string;
   expiryDate?: number;
   email: string;
+  appRefreshToken?: string; // App JWT refresh token
   createdAt: string;
   updatedAt: string;
 }
@@ -56,7 +57,7 @@ class GmailTokenStore {
       fs.writeFileSync(
         this.tokenFilePath,
         JSON.stringify(this.tokens, null, 2),
-        { mode: 0o600 } // Secure file permissions (read/write for owner only)
+        { mode: 0o600 }, // Secure file permissions (read/write for owner only)
       );
     } catch (error) {
       console.error("Error saving tokens:", error);
@@ -71,7 +72,7 @@ class GmailTokenStore {
     email: string,
     refreshToken: string,
     accessToken?: string,
-    expiryDate?: number
+    expiryDate?: number,
   ): void {
     const now = new Date().toISOString();
 
@@ -101,7 +102,7 @@ class GmailTokenStore {
   updateAccessToken(
     userId: string,
     accessToken: string,
-    expiryDate: number
+    expiryDate: number,
   ): void {
     if (this.tokens[userId]) {
       this.tokens[userId].accessToken = accessToken;
@@ -131,6 +132,35 @@ class GmailTokenStore {
    */
   getAllUserIds(): string[] {
     return Object.keys(this.tokens);
+  }
+
+  /**
+   * Store app refresh token for a user
+   */
+  setAppRefreshToken(userId: string, appRefreshToken: string): void {
+    if (!this.tokens[userId]) {
+      // Initialize token data if it doesn't exist
+      const now = new Date().toISOString();
+      this.tokens[userId] = {
+        userId,
+        email: "",
+        refreshToken: "",
+        appRefreshToken,
+        createdAt: now,
+        updatedAt: now,
+      };
+    } else {
+      this.tokens[userId].appRefreshToken = appRefreshToken;
+      this.tokens[userId].updatedAt = new Date().toISOString();
+    }
+    this.saveTokens();
+  }
+
+  /**
+   * Get app refresh token for a user
+   */
+  getAppRefreshToken(userId: string): string | null {
+    return this.tokens[userId]?.appRefreshToken || null;
   }
 }
 
