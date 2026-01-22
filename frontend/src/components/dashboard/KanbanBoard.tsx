@@ -68,6 +68,12 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
   const [draggingEmail, setDraggingEmail] = useState<Email | null>(null);
   const [snoozeEmailId, setSnoozeEmailId] = useState<string | null>(null);
   const [generatingIds, setGeneratingIds] = useState<Set<string>>(new Set());
+  const [customSnoozeModal, setCustomSnoozeModal] = useState<{
+    emailId: string;
+    show: boolean;
+  } | null>(null);
+  const [customSnoozeDate, setCustomSnoozeDate] = useState<string>("");
+  const [customSnoozeTime, setCustomSnoozeTime] = useState<string>("");
 
   // F3: Filter & Sort State
   const [sortBy, setSortBy] = useState<"newest" | "oldest">("newest");
@@ -303,10 +309,16 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
   };
 
   // Handle snooze
-  const handleSnooze = async (emailId: string, hours: number) => {
+  const handleSnooze = async (emailId: string, hoursOrDate: number | Date) => {
     try {
-      const snoozeUntil = new Date();
-      snoozeUntil.setHours(snoozeUntil.getHours() + hours);
+      const snoozeUntil =
+        hoursOrDate instanceof Date
+          ? hoursOrDate
+          : (() => {
+              const date = new Date();
+              date.setHours(date.getHours() + hoursOrDate);
+              return date;
+            })();
 
       await emailsAPI.snoozeEmail(emailId, {
         snoozeUntil: snoozeUntil.toISOString(),
@@ -315,16 +327,11 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
       // Update local state - move email to snoozed column
       setEmailsByStatus((prev) => {
         let emailToSnooze: Email | null = null;
-        let sourceStatus: EmailStatus | null = null;
+        let sourceStatus: string | null = null;
 
-        // Find the email in current columns
-        for (const status of [
-          "inbox",
-          "todo",
-          "done",
-          "snoozed",
-        ] as EmailStatus[]) {
-          const found = prev[status].find((e) => e.id === emailId);
+        // Find the email in any column
+        for (const status in prev) {
+          const found = prev[status]?.find((e) => e.id === emailId);
           if (found) {
             emailToSnooze = found;
             sourceStatus = status;
@@ -335,41 +342,67 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
         if (!emailToSnooze || !sourceStatus) return prev;
 
         // Create new state with email moved to snoozed
-        return {
-          inbox:
-            sourceStatus === "inbox"
-              ? prev.inbox.filter((e) => e.id !== emailId)
-              : prev.inbox,
-          todo:
-            sourceStatus === "todo"
-              ? prev.todo.filter((e) => e.id !== emailId)
-              : prev.todo,
-          done:
-            sourceStatus === "done"
-              ? prev.done.filter((e) => e.id !== emailId)
-              : prev.done,
-          snoozed:
-            sourceStatus === "snoozed"
-              ? prev.snoozed.map((e) =>
-                  e.id === emailId
-                    ? { ...e, snoozeUntil: snoozeUntil.toISOString() }
-                    : e,
-                )
-              : [
-                  ...prev.snoozed,
-                  {
-                    ...emailToSnooze,
-                    status: "snoozed",
-                    snoozeUntil: snoozeUntil.toISOString(),
-                  },
-                ],
-        };
+        const newState = { ...prev };
+
+        // Remove from source column
+        newState[sourceStatus] = prev[sourceStatus].filter(
+          (e) => e.id !== emailId,
+        );
+
+        // Add to or update in snoozed column
+        if (sourceStatus === "snoozed") {
+          // Already in snoozed, just update the snoozeUntil time
+          newState.snoozed = prev.snoozed.map((e) =>
+            e.id === emailId
+              ? { ...e, snoozeUntil: snoozeUntil.toISOString() }
+              : e,
+          );
+        } else {
+          // Move to snoozed column
+          newState.snoozed = [
+            ...(prev.snoozed || []),
+            {
+              ...emailToSnooze,
+              status: "snoozed",
+              snoozeUntil: snoozeUntil.toISOString(),
+            },
+          ];
+        }
+
+        return newState;
       });
 
       setSnoozeEmailId(null);
     } catch (error) {
       console.error("Failed to snooze email:", error);
     }
+  };
+
+  // Handle custom snooze
+  const handleCustomSnooze = () => {
+    if (!customSnoozeModal || !customSnoozeDate || !customSnoozeTime) {
+      alert("Please select both date and time");
+      return;
+    }
+
+    const combinedDateTime = new Date(
+      `${customSnoozeDate}T${customSnoozeTime}`,
+    );
+
+    if (isNaN(combinedDateTime.getTime())) {
+      alert("Invalid date or time");
+      return;
+    }
+
+    if (combinedDateTime <= new Date()) {
+      alert("Please select a future date and time");
+      return;
+    }
+
+    handleSnooze(customSnoozeModal.emailId, combinedDateTime);
+    setCustomSnoozeModal(null);
+    setCustomSnoozeDate("");
+    setCustomSnoozeTime("");
   };
 
   // Email card component
@@ -441,6 +474,22 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
                   className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded"
                 >
                   Snooze 3 days
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCustomSnoozeModal({ emailId: email.id, show: true });
+                    setSnoozeEmailId(null);
+                    // Set default to tomorrow at 9 AM
+                    const tomorrow = new Date();
+                    tomorrow.setDate(tomorrow.getDate() + 1);
+                    tomorrow.setHours(9, 0, 0, 0);
+                    setCustomSnoozeDate(tomorrow.toISOString().split("T")[0]);
+                    setCustomSnoozeTime("09:00");
+                  }}
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded border-t border-gray-200 mt-1 pt-2"
+                >
+                  Custom...
                 </button>
               </div>
             </div>
@@ -786,6 +835,73 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
         onClose={() => setSettingsOpen(false)}
         onConfigUpdated={handleConfigUpdated}
       />
+
+      {/* Custom Snooze Modal */}
+      {customSnoozeModal?.show && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+            <h2 className="text-xl font-semibold mb-4">Custom Snooze</h2>
+            <p className="text-sm text-gray-600 mb-4">
+              Choose when you want this email to return
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Date
+                </label>
+                <input
+                  type="date"
+                  value={customSnoozeDate}
+                  onChange={(e) => setCustomSnoozeDate(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Time
+                </label>
+                <input
+                  type="time"
+                  value={customSnoozeTime}
+                  onChange={(e) => setCustomSnoozeTime(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {customSnoozeDate && customSnoozeTime && (
+                <div className="text-sm text-gray-600 bg-blue-50 p-3 rounded">
+                  Email will return on{" "}
+                  {new Date(
+                    `${customSnoozeDate}T${customSnoozeTime}`,
+                  ).toLocaleString()}
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setCustomSnoozeModal(null);
+                  setCustomSnoozeDate("");
+                  setCustomSnoozeTime("");
+                }}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCustomSnooze}
+                disabled={!customSnoozeDate || !customSnoozeTime}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+              >
+                Snooze
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
