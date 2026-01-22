@@ -8,6 +8,77 @@ import { Email, EmailAddress, Attachment } from "../types";
  */
 
 /**
+ * Decode MIME encoded-word format (RFC 2047)
+ * Example: =?UTF-8?B?VGhheSDEkeG7lWk=?= -> Thay đổi
+ * Handles multiple adjacent encoded-words properly
+ */
+function decodeMailHeader(header: string): string {
+  if (!header) return "";
+
+  try {
+    // Check if header contains MIME encoded-words
+    // If not, return as-is (Gmail API might have already decoded it)
+    const mimeWordRegex = /=\?([^?]+)\?([BbQq])\?([^?]+)\?=/g;
+
+    if (!mimeWordRegex.test(header)) {
+      // No MIME encoding found, return as-is
+      return header;
+    }
+
+    // Reset regex for actual decoding
+    mimeWordRegex.lastIndex = 0;
+
+    let decoded = header;
+    let match;
+    const replacements: Array<{ start: number; end: number; text: string }> =
+      [];
+
+    // Find all encoded-words and their positions
+    while ((match = mimeWordRegex.exec(header)) !== null) {
+      const [fullMatch, charset, encoding, encodedText] = match;
+      try {
+        let decodedText = "";
+
+        if (encoding.toUpperCase() === "B") {
+          // Base64 encoding
+          decodedText = Buffer.from(encodedText, "base64").toString("utf-8");
+        } else if (encoding.toUpperCase() === "Q") {
+          // Quoted-printable encoding
+          decodedText = encodedText
+            .replace(/_/g, " ")
+            .replace(/=([0-9A-F]{2})/gi, (_: string, hex: string) =>
+              String.fromCharCode(parseInt(hex, 16)),
+            );
+        }
+
+        replacements.push({
+          start: match.index,
+          end: match.index + fullMatch.length,
+          text: decodedText,
+        });
+      } catch (e) {
+        console.error("Failed to decode MIME word:", fullMatch, e);
+      }
+    }
+
+    // Apply replacements in reverse order to maintain indices
+    for (let i = replacements.length - 1; i >= 0; i--) {
+      const { start, end, text } = replacements[i];
+      decoded = decoded.substring(0, start) + text + decoded.substring(end);
+    }
+
+    // RFC 2047: Remove whitespace between adjacent decoded encoded-words
+    // This handles cases like "=?UTF-8?B?part1?= =?UTF-8?B?part2?="
+    decoded = decoded.replace(/\s+(?=[\p{L}\p{N}])/gu, " ").trim();
+
+    return decoded;
+  } catch (error) {
+    console.error("Failed to decode mail header:", error);
+    return header;
+  }
+}
+
+/**
  * Strip HTML tags and decode entities from text
  */
 export function stripHtml(html: string): string {
@@ -46,7 +117,7 @@ export function parseGmailMessage(
   const fromHeader = getHeader("From");
   const toHeader = getHeader("To");
   const ccHeader = getHeader("Cc");
-  const subject = getHeader("Subject");
+  const subject = decodeMailHeader(getHeader("Subject"));
   const date = getHeader("Date");
 
   // Parse email addresses

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { X, Send, Paperclip } from "lucide-react";
+import DOMPurify from "dompurify";
 import apiClient from "../../api/axios";
 import type { Email, EmailAddress } from "../../types";
 
@@ -27,17 +28,33 @@ const ComposeEmail: React.FC<ComposeEmailProps> = ({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
 
+  // Helper function to strip HTML tags
+  const stripHtml = (html: string): string => {
+    const tmp = document.createElement("DIV");
+    tmp.innerHTML = DOMPurify.sanitize(html);
+    return tmp.textContent || tmp.innerText || "";
+  };
+
+  // Helper function to convert plain text to HTML
+  const textToHtml = (text: string): string => {
+    return text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\n/g, "<br>");
+  };
+
   // Pre-fill form for reply/forward
   useEffect(() => {
     if (replyTo) {
       if (forward) {
         // Forward: empty recipients, keep subject with Fwd:, include original body
+        // Keep original HTML to preserve formatting and encoding
         setTo("");
         setCc("");
         setSubject(`Fwd: ${replyTo.subject}`);
-        setBody(
-          `\n\n---------- Forwarded message ---------\nFrom: ${replyTo.from.name} <${replyTo.from.email}>\nDate: ${replyTo.timestamp}\nSubject: ${replyTo.subject}\n\n${replyTo.body}`
-        );
+        const forwardHeader = `<br><br><div style="border-left: 2px solid #ccc; padding-left: 10px; margin-left: 5px;"><p><strong>---------- Forwarded message ---------</strong></p><p><strong>From:</strong> ${replyTo.from.name} &lt;${replyTo.from.email}&gt;<br><strong>Date:</strong> ${replyTo.timestamp}<br><strong>Subject:</strong> ${replyTo.subject}</p><br>${replyTo.body}</div>`;
+        setBody(forwardHeader);
       } else {
         // Reply or Reply All
         const recipients = replyAll
@@ -58,13 +75,9 @@ const ComposeEmail: React.FC<ComposeEmailProps> = ({
         setSubject(
           replyTo.subject.startsWith("Re:")
             ? replyTo.subject
-            : `Re: ${replyTo.subject}`
+            : `Re: ${replyTo.subject}`,
         );
-        setBody(
-          `\n\n\nOn ${replyTo.timestamp}, ${
-            replyTo.from.name
-          } wrote:\n> ${replyTo.body.replace(/\n/g, "\n> ")}`
-        );
+        setBody(""); // Empty body for reply - user writes their own message
       }
     }
   }, [replyTo, replyAll, forward]);
@@ -102,11 +115,15 @@ const ComposeEmail: React.FC<ComposeEmailProps> = ({
           email,
         }));
 
+      // Convert plain text body to HTML (newlines to <br>)
+      // For forward, body is already HTML, so don't convert
+      const htmlBody = forward ? body : textToHtml(body);
+
       await apiClient.post("/emails/send", {
         to: toAddresses,
         cc: ccAddresses.length > 0 ? ccAddresses : undefined,
         subject,
-        body,
+        body: htmlBody,
         inReplyTo: replyTo && !forward ? replyTo.id : undefined,
       });
 
@@ -121,7 +138,8 @@ const ComposeEmail: React.FC<ComposeEmailProps> = ({
     } catch (err: any) {
       console.error("Send email error:", err);
       setError(
-        err.response?.data?.message || "Failed to send email. Please try again."
+        err.response?.data?.message ||
+          "Failed to send email. Please try again.",
       );
     } finally {
       setSending(false);
@@ -139,10 +157,10 @@ const ComposeEmail: React.FC<ComposeEmailProps> = ({
             {forward
               ? "Forward Email"
               : replyTo
-              ? replyAll
-                ? "Reply All"
-                : "Reply"
-              : "New Email"}
+                ? replyAll
+                  ? "Reply All"
+                  : "Reply"
+                : "New Email"}
           </h2>
           <button
             onClick={onClose}

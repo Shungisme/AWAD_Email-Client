@@ -881,16 +881,64 @@ router.post(
               )
             : undefined;
 
+          // If replying, fetch the original message to get threading info
+          let messageIdHeader: string | undefined;
+          let referencesHeader: string[] | undefined;
+          let threadId: string | undefined;
+
+          if (inReplyTo) {
+            try {
+              const originalMessage = await gmailService.getMessage(
+                userId,
+                inReplyTo,
+              );
+              threadId = originalMessage.threadId || undefined;
+
+              // Get Message-ID and References headers from original email
+              const headers = originalMessage.payload?.headers || [];
+              const getHeader = (name: string) => {
+                const header = headers.find(
+                  (h) => h.name?.toLowerCase() === name.toLowerCase(),
+                );
+                return header?.value;
+              };
+
+              messageIdHeader = getHeader("Message-ID") || undefined;
+              const existingReferences = getHeader("References");
+
+              // Build references chain: existing references + original message-id
+              if (existingReferences && messageIdHeader) {
+                referencesHeader = [
+                  ...existingReferences.split(/\s+/),
+                  messageIdHeader,
+                ];
+              } else if (messageIdHeader) {
+                referencesHeader = [messageIdHeader];
+              }
+            } catch (error) {
+              console.error(
+                "Failed to fetch original message for reply:",
+                error,
+              );
+              // Continue without threading info
+            }
+          }
+
           const rawMessage = createRawEmail({
             from: tokenData!.email,
             to: toEmails,
             subject: subject || "(no subject)",
             body: body || "",
             cc: ccEmails,
-            inReplyTo,
+            inReplyTo: messageIdHeader,
+            references: referencesHeader,
           });
 
-          const result = await gmailService.sendMessage(userId, rawMessage);
+          const result = await gmailService.sendMessage(
+            userId,
+            rawMessage,
+            threadId,
+          );
 
           res.json({
             success: true,
@@ -944,42 +992,67 @@ router.delete(
 
       if (hasGmailToken) {
         try {
-          await gmailService.trashMessage(userId, id);
-          res.json({
-            success: true,
-            message: "Email moved to trash",
-          });
+          // Check if email is already in trash
+          let isAlreadyTrashed = false;
+          try {
+            const emailDoc = await EmailModel.findOne({
+              emailId: id,
+              userId: userId,
+            });
+            isAlreadyTrashed =
+              emailDoc?.status === "trash" || emailDoc?.mailboxId === "TRASH";
+          } catch (dbError) {
+            console.warn("Failed to check email status:", dbError);
+          }
+
+          if (isAlreadyTrashed) {
+            // Permanently delete from Gmail
+            await gmailService.deleteMessage(userId, id);
+
+            // Delete from MongoDB
+            try {
+              await EmailModel.deleteOne({ emailId: id, userId: userId });
+            } catch (dbError) {
+              console.warn("Failed to delete email from MongoDB:", dbError);
+            }
+
+            res.json({
+              success: true,
+              message: "Email permanently deleted",
+            });
+          } else {
+            // Move to trash
+            await gmailService.trashMessage(userId, id);
+
+            // Update email in MongoDB to reflect trash status
+            try {
+              await EmailModel.findOneAndUpdate(
+                { emailId: id, userId: userId },
+                {
+                  $set: {
+                    status: "trash",
+                    mailboxId: "TRASH",
+                  },
+                },
+              );
+            } catch (dbError) {
+              console.warn(
+                "Failed to update email status in MongoDB:",
+                dbError,
+              );
+              // Continue - Gmail trash was successful
+            }
+
+            res.json({
+              success: true,
+              message: "Email moved to trash",
+            });
+          }
           return;
         } catch (error) {
-          console.error("Gmail trash error:", error);
+          console.error("Gmail trash/delete error:", error);
           // Fall through to mock
         }
-      }
-
-      // Fallback to mock data
-      const emailIndex = emails.findIndex(
-        (e) => e.id === id && e.userId === userId,
-      );
-
-      if (emailIndex === -1) {
-        res.status(404).json({
-          success: false,
-          message: "Email not found",
-        });
-        return;
-      }
-
-      // Find trash mailbox
-      const trashMailbox = mailboxesData.find(
-        (m) => m.name === "Trash" && m.userId === userId,
-      );
-
-      if (trashMailbox) {
-        // Move to trash
-        emails[emailIndex].mailboxId = trashMailbox.id;
-      } else {
-        // If no trash mailbox, actually delete
-        emails.splice(emailIndex, 1);
       }
 
       res.json({
