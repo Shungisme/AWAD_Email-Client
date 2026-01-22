@@ -26,7 +26,7 @@ class GmailService {
     const oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET,
-      process.env.GOOGLE_REDIRECT_URI
+      process.env.GOOGLE_REDIRECT_URI,
     );
 
     return oauth2Client.generateAuthUrl({
@@ -43,7 +43,7 @@ class GmailService {
     const oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET,
-      process.env.GOOGLE_REDIRECT_URI
+      process.env.GOOGLE_REDIRECT_URI,
     );
 
     const { tokens } = await oauth2Client.getToken(code);
@@ -63,7 +63,7 @@ class GmailService {
     const oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET,
-      process.env.GOOGLE_REDIRECT_URI
+      process.env.GOOGLE_REDIRECT_URI,
     );
 
     // Set credentials
@@ -82,7 +82,7 @@ class GmailService {
         tokenStore.updateAccessToken(
           userId,
           credentials.access_token,
-          credentials.expiry_date
+          credentials.expiry_date,
         );
       }
     }
@@ -107,7 +107,7 @@ class GmailService {
     userId: string,
     labelId: string = "INBOX",
     maxResults: number = 50,
-    pageToken?: string
+    pageToken?: string,
   ) {
     const gmail = await this.getGmailClient(userId);
 
@@ -162,7 +162,7 @@ class GmailService {
     userId: string,
     messageId: string,
     addLabelIds?: string[],
-    removeLabelIds?: string[]
+    removeLabelIds?: string[],
   ) {
     const gmail = await this.getGmailClient(userId);
 
@@ -181,13 +181,14 @@ class GmailService {
   /**
    * Send an email
    */
-  async sendMessage(userId: string, rawMessage: string) {
+  async sendMessage(userId: string, rawMessage: string, threadId?: string) {
     const gmail = await this.getGmailClient(userId);
 
     const response = await gmail.users.messages.send({
       userId: "me",
       requestBody: {
         raw: rawMessage,
+        threadId: threadId, // For threading replies
       },
     });
 
