@@ -10,7 +10,7 @@ import KanbanBoard from "../components/dashboard/KanbanBoard";
 import SearchResults from "../components/dashboard/SearchResults";
 import SearchBar from "../components/dashboard/SearchBar";
 import { LayoutGrid, List } from "lucide-react";
-import { semanticSearch } from "../api/emails.api";
+import { semanticSearch, fetchEmailById } from "../api/emails.api";
 import { useSocket } from "../contexts/SocketContext";
 import toast, { Toaster } from "react-hot-toast";
 import { useMailboxes } from "../hooks/useMailboxes";
@@ -256,9 +256,19 @@ const Dashboard: React.FC = () => {
     setComposeOpen(true);
   };
 
-  const handleEmailSent = () => {
+  const handleEmailSent = async () => {
     // Refresh emails after sending
     handleRefresh();
+
+    // If replying to a selected email, refresh it to show the updated thread
+    if (selectedEmail && composeMode.replyTo) {
+      try {
+        const updatedEmail = await fetchEmailById(selectedEmail.id);
+        setSelectedEmail(updatedEmail);
+      } catch (error) {
+        console.error("Failed to refresh email after reply:", error);
+      }
+    }
   };
 
   const handleEmailUpdate = (updatedEmail: Email) => {
