@@ -52,7 +52,8 @@ const Login: React.FC = () => {
     try {
       await login({ email, password });
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : "Login failed. Please try again.";
+      const errorMessage =
+        err instanceof Error ? err.message : "Login failed. Please try again.";
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -72,7 +73,10 @@ const Login: React.FC = () => {
       // Redirect to Google OAuth consent screen
       window.location.href = url;
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to initiate Gmail login. Please try again.";
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : "Failed to initiate Gmail login. Please try again.";
       setError(errorMessage);
       setLoading(false);
     }
@@ -138,85 +142,6 @@ const Login: React.FC = () => {
               </>
             )}
           </button>
-
-          {/* Divider */}
-          <div className="relative mb-2">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-300"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-4 bg-white text-gray-500">
-                Or use account
-              </span>
-            </div>
-          </div>
-
-          {/* Email/Password Form */}
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Email Input */}
-            <div>
-              <label
-                htmlFor="email"
-                className="block text-sm font-medium text-gray-700 mb-2"
-              >
-                Email Address
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-gray-400" />
-                </div>
-                <input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors"
-                  placeholder="demo@example.com"
-                  disabled={loading}
-                />
-              </div>
-            </div>
-
-            {/* Password Input */}
-            <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-gray-700 mb-2"
-              >
-                Password
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-gray-400" />
-                </div>
-                <input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors"
-                  placeholder="••••••••"
-                  disabled={loading}
-                />
-              </div>
-            </div>
-
-            {/* Login Button */}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-primary-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Signing in...
-                </>
-              ) : (
-                "Sign In with Demo"
-              )}
-            </button>
-          </form>
         </div>
 
         {/* Footer */}
