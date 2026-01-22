@@ -1,51 +1,124 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import apiClient from '../api/axios';
 import { cacheService } from '../services/cacheService';
 import type { Email } from '../types';
 import { useOnlineStatus } from './useOnlineStatus';
 
+const PAGE_SIZE = 10;
+
 export const useMailboxEmails = (mailboxId: string | null) => {
   const [emails, setEmails] = useState<Email[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const [hasMore, setHasMore] = useState(true);
   const isOnline = useOnlineStatus();
+  
+  // Use ref to store nextPageToken to avoid re-renders
+  const nextPageTokenRef = useRef<string | null>(null);
 
-  const fetchEmails = useCallback(async () => {
+  const fetchEmails = useCallback(async (isLoadMore: boolean = false) => {
     if (!mailboxId) return;
 
-    setLoading(true);
-    try {
-      // 1. Load from cache
-      const cachedEmails = await cacheService.getEmailsByMailbox(mailboxId);
-      // Sort by timestamp desc if needed, but usually backend does it.
-      // Let's assume backend order is correct, but cached might be mixed?
-      // Usually we just trust the cache order or sort it.
-      // Let's sort by timestamp desc to be safe.
-      cachedEmails.sort((a: Email, b: Email) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    if (isLoadMore) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+    }
 
-      if (cachedEmails.length > 0) {
-        setEmails(cachedEmails);
+    try {
+      // Load from cache only for first load
+      if (!isLoadMore) {
+        const cachedEmails = await cacheService.getEmailsByMailbox(mailboxId);
+        cachedEmails.sort((a: Email, b: Email) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+        if (cachedEmails.length > 0) {
+          setEmails(cachedEmails);
+        }
       }
 
-      // 2. Fetch from network if online
+      // Fetch from network if online
       if (isOnline) {
-        const response = await apiClient.get(`/mailboxes/${mailboxId}/emails`);
-        const freshEmails = response.data.data || response.data;
+        // Build params - use pageToken for subsequent requests (Gmail), page number for mock data
+        const params: Record<string, string | number> = { limit: PAGE_SIZE };
         
-        setEmails(freshEmails);
-        await cacheService.saveEmails(freshEmails);
+        if (isLoadMore && nextPageTokenRef.current) {
+          // Use pageToken for Gmail pagination
+          params.pageToken = nextPageTokenRef.current;
+        } else if (!isLoadMore) {
+          // Reset pageToken on fresh fetch
+          nextPageTokenRef.current = null;
+        }
+
+        const response = await apiClient.get(`/mailboxes/${mailboxId}/emails`, { params });
+        
+        const freshEmails = response.data.data || response.data;
+        const pagination = response.data.pagination;
+        
+        if (isLoadMore) {
+          setEmails(prev => {
+            // Avoid duplicates when appending
+            const existingIds = new Set(prev.map(e => e.id));
+            const newEmails = freshEmails.filter((e: Email) => !existingIds.has(e.id));
+            const combined = [...prev, ...newEmails];
+            // Update cache with combined emails
+            cacheService.saveEmails(combined);
+            return combined;
+          });
+        } else {
+          setEmails(freshEmails);
+          await cacheService.saveEmails(freshEmails);
+        }
+
+        // Store nextPageToken for subsequent requests
+        if (pagination?.nextPageToken) {
+          nextPageTokenRef.current = pagination.nextPageToken;
+          setHasMore(true);
+        } else {
+          nextPageTokenRef.current = null;
+          // For mock data without pageToken, check if we got fewer results than requested
+          setHasMore(freshEmails.length >= PAGE_SIZE);
+        }
       }
     } catch (err) {
       console.error('Failed to fetch emails:', err);
       setError(err as Error);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   }, [mailboxId, isOnline]);
 
-  useEffect(() => {
-    fetchEmails();
+  // Load more emails (next page)
+  const loadMore = useCallback(() => {
+    if (!loadingMore && hasMore) {
+      fetchEmails(true);
+    }
+  }, [fetchEmails, loadingMore, hasMore]);
+
+  // Refresh (reset to first page)
+  const refresh = useCallback(() => {
+    nextPageTokenRef.current = null;
+    setHasMore(true);
+    fetchEmails(false);
   }, [fetchEmails]);
 
-  return { emails, setEmails, loading, error, refresh: fetchEmails };
+  // Reset when mailbox changes
+  useEffect(() => {
+    nextPageTokenRef.current = null;
+    setHasMore(true);
+    setEmails([]);
+    fetchEmails(false);
+  }, [mailboxId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return { 
+    emails, 
+    setEmails, 
+    loading, 
+    loadingMore,
+    error, 
+    refresh,
+    loadMore,
+    hasMore
+  };
 };

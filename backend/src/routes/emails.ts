@@ -570,7 +570,7 @@ router.get(
     try {
       const userId = req.user?.userId;
       let { mailboxId } = req.params;
-      const { page = "1", limit = "50" } = req.query;
+      const { page = "1", limit = "10", pageToken } = req.query;
 
       // Default to INBOX if mailboxId is empty
       if (!mailboxId || mailboxId.trim() === "") {
@@ -593,11 +593,12 @@ router.get(
 
       if (hasGmailToken) {
         try {
-          // Fetch real Gmail messages
+          // Fetch real Gmail messages with pageToken support
           const result = await gmailService.listMessages(
             userId,
             mailboxId,
             limitNum,
+            pageToken as string | undefined,
           );
 
           // Fetch or create emails from DB with AI summaries
@@ -614,7 +615,7 @@ router.get(
               page: pageNum,
               limit: limitNum,
               total: result.resultSizeEstimate || 0,
-              nextPageToken: result.nextPageToken,
+              nextPageToken: result.nextPageToken || null,
             },
           });
           return;

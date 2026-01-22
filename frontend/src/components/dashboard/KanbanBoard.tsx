@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useImperativeHandle, forwardRef } from "react";
 import { formatDistanceToNow } from "date-fns";
 import {
   Mail,
@@ -46,6 +46,10 @@ interface KanbanBoardProps {
   onGenerateSummary?: (emailId: string) => Promise<string | null>; // Returns summary
 }
 
+export interface KanbanBoardRef {
+  addNewEmail: (email: Email) => void;
+}
+
 interface Column {
   id: string; // React key (UUID)
   status: string; // Email status identifier
@@ -54,11 +58,11 @@ interface Column {
   color: string;
 }
 
-const KanbanBoard: React.FC<KanbanBoardProps> = ({
+const KanbanBoard = forwardRef<KanbanBoardRef, KanbanBoardProps>(({
   mailboxId,
   onSelectEmail,
   onGenerateSummary,
-}) => {
+}, ref) => {
   const [columns, setColumns] = useState<Column[]>([]);
   const [emailsByStatus, setEmailsByStatus] = useState<Record<string, Email[]>>(
     {},
@@ -74,6 +78,49 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
   const [filterUnread, setFilterUnread] = useState(false);
   const [filterAttachments, setFilterAttachments] = useState(false);
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
+
+  // Map mailboxId (uppercase) to status (lowercase), default to inbox
+  const mapMailboxIdToStatus = useCallback((mailboxId: string): string => {
+    const mailboxToStatus: Record<string, string> = {
+      'INBOX': 'inbox',
+      'SENT': 'sent',
+      'DRAFTS': 'drafts',
+      'TRASH': 'trash',
+      'SPAM': 'spam',
+    };
+    return mailboxToStatus[mailboxId.toUpperCase()] || 'inbox';
+  }, []);
+
+  // Expose method to add new email from socket
+  useImperativeHandle(ref, () => ({
+    addNewEmail: (newEmail: Email) => {
+      // Determine which column to add the email to
+      let targetStatus = newEmail.status || 'inbox';
+      
+      // If status is uppercase (from backend), map it to lowercase kanban column
+      if (newEmail.status && newEmail.status === newEmail.status.toUpperCase()) {
+        targetStatus = mapMailboxIdToStatus(newEmail.status);
+      }
+      // If email doesn't have a status but has mailboxId, map it
+      else if (!newEmail.status && newEmail.mailboxId) {
+        targetStatus = mapMailboxIdToStatus(newEmail.mailboxId);
+      }
+
+      setEmailsByStatus((prev) => {
+        // Check if email already exists to avoid duplicates
+        const statusEmails = prev[targetStatus] || [];
+        if (statusEmails.some((e) => e.id === newEmail.id)) {
+          return prev;
+        }
+
+        // Add new email to the top of the column
+        return {
+          ...prev,
+          [targetStatus]: [newEmail, ...statusEmails],
+        };
+      });
+    },
+  }), [mapMailboxIdToStatus]);
 
   // Load Kanban configuration
   useEffect(() => {
@@ -788,6 +835,8 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
       />
     </div>
   );
-};
+});
+
+KanbanBoard.displayName = 'KanbanBoard';
 
 export default KanbanBoard;

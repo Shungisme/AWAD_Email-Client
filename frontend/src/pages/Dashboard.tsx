@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "../hooks/useAuth";
 import Sidebar from "../components/dashboard/Sidebar";
 import apiClient from "../api/axios";
@@ -6,7 +6,7 @@ import type { Mailbox, Email } from "../types";
 import EmailDetail from "../components/dashboard/EmailDetail";
 import EmailList from "../components/dashboard/EmailList";
 import ComposeEmail from "../components/dashboard/ComposeEmail";
-import KanbanBoard from "../components/dashboard/KanbanBoard";
+import KanbanBoard, { type KanbanBoardRef } from "../components/dashboard/KanbanBoard";
 import SearchResults from "../components/dashboard/SearchResults";
 import SearchBar from "../components/dashboard/SearchBar";
 import { LayoutGrid, List } from "lucide-react";
@@ -28,6 +28,7 @@ const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const { socket } = useSocket();
   const isOnline = useOnlineStatus();
+  const kanbanRef = useRef<KanbanBoardRef>(null);
 
   const { mailboxes, loading: mailboxesLoading } = useMailboxes();
   const [selectedMailbox, setSelectedMailbox] = useState<Mailbox | null>(null);
@@ -35,7 +36,10 @@ const Dashboard: React.FC = () => {
     emails,
     setEmails,
     loading: emailsLoading,
+    loadingMore,
+    hasMore,
     refresh: refreshEmails,
+    loadMore,
   } = useMailboxEmails(selectedMailbox?.id || null);
 
   const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
@@ -82,8 +86,7 @@ const Dashboard: React.FC = () => {
         },
       );
 
-      // If we are viewing the Inbox, add the new email to the list
-      // Note: In a real app, we should check if the email belongs to the current mailbox
+      // Update list view: If we are viewing the mailbox where the email belongs
       if (selectedMailbox?.name === newEmail.mailboxId) {
         setEmails((prevEmails) => {
           // Check if email already exists to avoid duplicates
@@ -96,6 +99,11 @@ const Dashboard: React.FC = () => {
           return newEmails;
         });
       }
+
+      // Update kanban view: Add email to appropriate column
+      if (viewMode === "kanban" && kanbanRef.current) {
+        kanbanRef.current.addNewEmail(newEmail);
+      }
     };
 
     socket.on("email:new", handleNewEmail);
@@ -103,7 +111,7 @@ const Dashboard: React.FC = () => {
     return () => {
       socket.off("email:new", handleNewEmail);
     };
-  }, [socket, selectedMailbox, setEmails]);
+  }, [socket, selectedMailbox, setEmails, viewMode]);
 
   const handleMailboxSelect = (mailbox: Mailbox) => {
     setSelectedMailbox(mailbox);
@@ -507,6 +515,7 @@ const Dashboard: React.FC = () => {
           /* Kanban View - Full Width - Shows all emails by status */
           <div className="flex-1 overflow-hidden">
             <KanbanBoard
+              ref={kanbanRef}
               mailboxId={selectedMailbox?.id}
               onSelectEmail={handleEmailSelect}
               onGenerateSummary={handleGenerateSummary}
@@ -530,6 +539,8 @@ const Dashboard: React.FC = () => {
               <EmailList
                 emails={emails}
                 loading={emailsLoading}
+                loadingMore={loadingMore}
+                hasMore={hasMore}
                 selectedEmail={selectedEmail}
                 onSelectEmail={handleEmailSelect}
                 onToggleStar={handleToggleStar}
@@ -537,6 +548,7 @@ const Dashboard: React.FC = () => {
                 onMarkAsRead={handleMarkAsRead}
                 onRefresh={handleRefresh}
                 onCompose={handleCompose}
+                onLoadMore={loadMore}
                 onGenerateSummary={handleGenerateSummary}
               />
             </div>

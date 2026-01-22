@@ -17,6 +17,8 @@ import type { Email } from "../../types";
 interface EmailListProps {
   emails: Email[];
   loading: boolean;
+  loadingMore?: boolean;
+  hasMore?: boolean;
   selectedEmail: Email | null;
   onSelectEmail: (email: Email) => void;
   onToggleStar: (emailId: string) => void;
@@ -24,12 +26,15 @@ interface EmailListProps {
   onMarkAsRead: (emailIds: string[], isRead: boolean) => void;
   onRefresh: () => void;
   onCompose: () => void;
+  onLoadMore?: () => void;
   onGenerateSummary?: (emailId: string) => Promise<string | null>;
 }
 
 const EmailList: React.FC<EmailListProps> = ({
   emails,
   loading,
+  loadingMore = false,
+  hasMore = false,
   selectedEmail,
   onSelectEmail,
   onToggleStar,
@@ -37,12 +42,15 @@ const EmailList: React.FC<EmailListProps> = ({
   onMarkAsRead,
   onRefresh,
   onCompose,
+  onLoadMore,
   onGenerateSummary,
 }) => {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [generatingIds, setGeneratingIds] = useState<Set<string>>(new Set());
   const selectedEmailRef = useRef<HTMLDivElement>(null);
+  const listContainerRef = useRef<HTMLDivElement>(null);
+  const observerTarget = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (selectedEmail && selectedEmailRef.current) {
@@ -52,6 +60,32 @@ const EmailList: React.FC<EmailListProps> = ({
       });
     }
   }, [selectedEmail]);
+
+  // Infinite scroll using Intersection Observer
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore && !loading && onLoadMore) {
+          onLoadMore();
+        }
+      },
+      { 
+        root: listContainerRef.current,
+        threshold: 0.1 
+      }
+    );
+
+    const currentTarget = observerTarget.current;
+    if (currentTarget) {
+      observer.observe(currentTarget);
+    }
+
+    return () => {
+      if (currentTarget) {
+        observer.unobserve(currentTarget);
+      }
+    };
+  }, [hasMore, loadingMore, loading, onLoadMore]);
 
   const handleGenerateSummary = async (
     e: React.MouseEvent,
@@ -194,7 +228,7 @@ const EmailList: React.FC<EmailListProps> = ({
       </div>
 
       {/* Email List */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin">
+      <div ref={listContainerRef} className="flex-1 overflow-y-auto scrollbar-thin">
         {loading ? (
           <div className="flex items-center justify-center h-32">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
@@ -322,6 +356,24 @@ const EmailList: React.FC<EmailListProps> = ({
                 </div>
               );
             })}
+
+            {/* Infinite scroll observer target */}
+            <div ref={observerTarget} className="h-1" />
+            
+            {/* Loading more indicator */}
+            {loadingMore && (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="w-6 h-6 animate-spin text-primary-600" />
+                <span className="ml-2 text-sm text-gray-500">Loading more emails...</span>
+              </div>
+            )}
+            
+            {/* End of list message */}
+            {!hasMore && filteredEmails.length > 0 && (
+              <div className="text-center py-4 text-sm text-gray-400">
+                No more emails to load
+              </div>
+            )}
           </div>
         )}
       </div>
