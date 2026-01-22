@@ -1,12 +1,13 @@
-import React, { createContext, useState, useEffect, useCallback, useRef } from "react";
+import React, {
+  createContext,
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+} from "react";
 import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import apiClient, {
-  setAccessToken,
-  setRefreshToken,
-  getRefreshToken,
-  clearTokens,
-} from "../api/axios";
+import apiClient, { setAccessToken, clearTokens } from "../api/axios";
 import type { User, LoginCredentials, GoogleAuthRequest } from "../types";
 import { cacheService } from "../services/cacheService";
 import AuthWorker from "../workers/auth.worker?sharedworker";
@@ -48,7 +49,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       navigate("/login");
     },
-    [navigate]
+    [navigate],
   );
 
   useEffect(() => {
@@ -70,33 +71,27 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return () => window.removeEventListener("auth:logout", onForcedLogout);
   }, [handleLogout]);
 
-  // Check for existing refresh token on mount
+  // Check for existing session on mount (via httpOnly cookie)
   useEffect(() => {
     const initAuth = async () => {
-      const refreshToken = getRefreshToken();
+      try {
+        // Try to refresh the access token using httpOnly cookie
+        const response = await apiClient.post("/auth/refresh", {});
+        const { accessToken } = response.data;
 
-      if (refreshToken) {
-        try {
-          // Try to refresh the access token
-          const response = await apiClient.post("/auth/refresh", {
-            refreshToken,
-          });
-          const { accessToken } = response.data;
+        setAccessToken(accessToken);
 
-          setAccessToken(accessToken);
-
-          // Decode JWT to get user info since /auth/refresh doesn't return user data
-          const payload = JSON.parse(atob(accessToken.split(".")[1]));
-          const userData: User = {
-            id: payload.userId,
-            email: payload.email,
-            name: payload.email.split("@")[0],
-          };
-          setUser(userData);
-        } catch {
-          // Refresh failed, clear tokens
-          clearTokens();
-        }
+        // Decode JWT to get user info since /auth/refresh doesn't return user data
+        const payload = JSON.parse(atob(accessToken.split(".")[1]));
+        const userData: User = {
+          id: payload.userId,
+          email: payload.email,
+          name: payload.email.split("@")[0],
+        };
+        setUser(userData);
+      } catch {
+        // No active session or refresh failed
+        clearTokens();
       }
 
       setLoading(false);
@@ -108,17 +103,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const login = async (credentials: LoginCredentials) => {
     try {
       const response = await apiClient.post("/auth/login", credentials);
-      const { accessToken, refreshToken, user: userData } = response.data;
+      const { accessToken, user: userData } = response.data;
 
       setAccessToken(accessToken);
-      setRefreshToken(refreshToken);
       setUser(userData);
 
       navigate("/inbox");
     } catch (error) {
       const err = error as { response?: { data?: { message?: string } } };
       throw new Error(
-        err.response?.data?.message || "Login failed. Please try again."
+        err.response?.data?.message || "Login failed. Please try again.",
       );
     }
   };
@@ -126,18 +120,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const loginWithGoogle = async (request: GoogleAuthRequest) => {
     try {
       const response = await apiClient.post("/auth/google", request);
-      const { accessToken, refreshToken, user: userData } = response.data;
+      const { accessToken, user: userData } = response.data;
 
       setAccessToken(accessToken);
-      setRefreshToken(refreshToken);
       setUser(userData);
 
       navigate("/inbox");
     } catch (error) {
       const err = error as { response?: { data?: { message?: string } } };
       throw new Error(
-        err.response?.data?.message ||
-          "Google login failed. Please try again."
+        err.response?.data?.message || "Google login failed. Please try again.",
       );
     }
   };

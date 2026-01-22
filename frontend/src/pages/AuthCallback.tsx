@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Loader2, CheckCircle, XCircle } from "lucide-react";
-import { setAccessToken, setRefreshToken } from "../api/axios";
+import { setAccessToken } from "../api/axios";
 import { useAuth } from "../hooks/useAuth";
 
 /**
@@ -16,7 +16,7 @@ const AuthCallback: React.FC = () => {
   const navigate = useNavigate();
   const { setUserData } = useAuth();
   const [status, setStatus] = useState<"loading" | "success" | "error">(
-    "loading"
+    "loading",
   );
   const [message, setMessage] = useState("Processing authentication...");
   const hasProcessed = useRef(false);
@@ -34,7 +34,6 @@ const AuthCallback: React.FC = () => {
 
         // Get tokens from URL parameters
         const accessToken = searchParams.get("accessToken");
-        const refreshToken = searchParams.get("refreshToken");
         const error = searchParams.get("error");
 
         if (error) {
@@ -44,16 +43,15 @@ const AuthCallback: React.FC = () => {
           return;
         }
 
-        if (!accessToken || !refreshToken) {
+        if (!accessToken) {
           setStatus("error");
-          setMessage("Missing authentication tokens");
+          setMessage("Missing authentication token");
           setTimeout(() => navigate("/login", { replace: true }), 3000);
           return;
         }
 
-        // Store tokens FIRST
+        // Store access token (refresh token is in httpOnly cookie)
         setAccessToken(accessToken);
-        setRefreshToken(refreshToken);
 
         // Decode JWT to get user info (simple base64 decode of payload)
         const payload = JSON.parse(atob(accessToken.split(".")[1]));

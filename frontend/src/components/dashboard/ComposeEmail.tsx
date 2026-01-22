@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { X, Send, Paperclip } from "lucide-react";
-import DOMPurify from "dompurify";
 import apiClient from "../../api/axios";
 import type { Email, EmailAddress } from "../../types";
 
@@ -27,13 +26,6 @@ const ComposeEmail: React.FC<ComposeEmailProps> = ({
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
-
-  // Helper function to strip HTML tags
-  // const stripHtml = (html: string): string => {
-  //   const tmp = document.createElement("DIV");
-  //   tmp.innerHTML = DOMPurify.sanitize(html);
-  //   return tmp.textContent || tmp.innerText || "";
-  // };
 
   // Helper function to convert plain text to HTML
   const textToHtml = (text: string): string => {
